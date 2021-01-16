@@ -462,7 +462,7 @@ namespace PixelsForGlory
     struct RayTracerMeshData
     {
         RayTracerMeshData()
-            : instanceId(0)
+            : sharedMeshInstanceId(0)
             , vertexCount(0)
             , indexCount(0)
             , vertices()
@@ -472,7 +472,7 @@ namespace PixelsForGlory
             , blas()
         {}
 
-        int instanceId;
+        int sharedMeshInstanceId;
         int vertexCount;
         int indexCount;
 
@@ -482,6 +482,13 @@ namespace PixelsForGlory
         VulkanBuffer indices;
 
         RayTracerAccelerationStructure blas;
+    };
+
+    struct RayTracerMeshInstanceData
+    {
+        int meshInstanceId;
+        int sharedMeshInstanceId;
+        mat4 worldTransform;
     };
 
 
@@ -494,7 +501,11 @@ namespace PixelsForGlory
 
         virtual void ProcessDeviceEvent(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces);
         
-        virtual void AddMesh(int instanceId, float* vertices, float* normals, float* uvs, int vertexCount, int* indices, int indexCount);
+        virtual void AddMesh(int sharedMeshInstanceId, float* vertices, float* normals, float* uvs, int vertexCount, int* indices, int indexCount);
+
+        virtual void AddTlasInstance(int meshInstanceId, int sharedMeshInstanceId, float* l2wMatrix);
+
+        virtual void BuildTlas();
 
     //private:
         //typedef std::map<unsigned long long, VulkanBuffers> DeleteQueue;
@@ -505,7 +516,11 @@ namespace PixelsForGlory
         IUnityGraphicsVulkan* graphicsInterface_;
         RayTracerVulkanInstance rayTracerVulkanInstance_;
         
+        // sharedMeshInstanceId => data
         std::map<int, std::shared_ptr<RayTracerMeshData>> meshes;
+
+        // meshInstanceId => data
+        std::map<int, RayTracerMeshInstanceData> meshInstances;
 
         RayTracerAccelerationStructure tlas;
 
@@ -514,7 +529,7 @@ namespace PixelsForGlory
         void Destroy();
 
         void BuildBlas(const std::shared_ptr<RayTracerMeshData>& mesh);
-        void BuildTlas();
+        
         
         VkDeviceOrHostAddressKHR GetBufferDeviceAddress(const VulkanBuffer& buffer);
         VkDeviceOrHostAddressConstKHR GetBufferDeviceAddressConst(const VulkanBuffer& buffer);
@@ -597,16 +612,16 @@ void PixelsForGlory::RayTracerAPI_Vulkan::Destroy()
 }
 
 
-void PixelsForGlory::RayTracerAPI_Vulkan::AddMesh(int instanceId, float* vertices, float* normals, float* uvs, int vertexCount, int* indices, int indexCount)
+void PixelsForGlory::RayTracerAPI_Vulkan::AddMesh(int shareMeshInstanceId, float* vertices, float* normals, float* uvs, int vertexCount, int* indices, int indexCount)
 {
-    if (meshes.find(instanceId) != meshes.end())
+    if (meshes.find(shareMeshInstanceId) != meshes.end())
     {
-        Debug::Log("Mesh already added (instanceId = " + std::to_string(instanceId) + ")");
+        Debug::Log("Mesh already added (instanceId = " + std::to_string(shareMeshInstanceId) + ")");
         return;
     }
     
     auto sentMesh = std::make_shared<RayTracerMeshData>();
-    sentMesh->instanceId = instanceId;
+    sentMesh->sharedMeshInstanceId = shareMeshInstanceId;
     
     sentMesh->vertexCount = vertexCount;
     sentMesh->indexCount = indexCount;
@@ -620,7 +635,7 @@ void PixelsForGlory::RayTracerAPI_Vulkan::AddMesh(int instanceId, float* vertice
             VulkanBuffer::kDefaultMemoryPropertyFlags) 
         != VK_SUCCESS)
     {
-        Debug::LogError("Failed to create vertices buffer for mesh instance id " + std::to_string(instanceId));
+        Debug::LogError("Failed to create vertices buffer for mesh instance id " + std::to_string(shareMeshInstanceId));
         success = false;
     }
 
@@ -632,7 +647,7 @@ void PixelsForGlory::RayTracerAPI_Vulkan::AddMesh(int instanceId, float* vertice
         VulkanBuffer::kDefaultMemoryPropertyFlags)
         != VK_SUCCESS)
     {
-        Debug::LogError("Failed to create normals buffer for mesh instance id " + std::to_string(instanceId));
+        Debug::LogError("Failed to create normals buffer for mesh instance id " + std::to_string(shareMeshInstanceId));
         success = false;
     }
 
@@ -644,7 +659,7 @@ void PixelsForGlory::RayTracerAPI_Vulkan::AddMesh(int instanceId, float* vertice
         VulkanBuffer::kDefaultMemoryPropertyFlags)
         != VK_SUCCESS)
     {
-        Debug::LogError("Failed to create uvs buffer for mesh instance id " + std::to_string(instanceId));
+        Debug::LogError("Failed to create uvs buffer for mesh instance id " + std::to_string(shareMeshInstanceId));
         success = false;
     }
     
@@ -655,7 +670,7 @@ void PixelsForGlory::RayTracerAPI_Vulkan::AddMesh(int instanceId, float* vertice
             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
             VulkanBuffer::kDefaultMemoryPropertyFlags))
     {
-        Debug::LogError("Failed to create indices buffer for mesh instance id " + std::to_string(instanceId));
+        Debug::LogError("Failed to create indices buffer for mesh instance id " + std::to_string(shareMeshInstanceId));
         success = false;
     }
 
@@ -696,7 +711,9 @@ void PixelsForGlory::RayTracerAPI_Vulkan::AddMesh(int instanceId, float* vertice
 
     BuildBlas(sentMesh);
 
-    meshes.insert(std::make_pair(sentMesh->instanceId, std::move(sentMesh)));
+    meshes.insert(std::make_pair(sentMesh->sharedMeshInstanceId, std::move(sentMesh)));
+
+    Debug::Log("Added mesh (sharedMeshInstanceId: " + std::to_string(shareMeshInstanceId) + ")");
 
 }
 
@@ -820,29 +837,44 @@ void PixelsForGlory::RayTracerAPI_Vulkan::BuildBlas(const std::shared_ptr<RayTra
     accelerationStructureDeviceAddressInfo.accelerationStructure = mesh->blas.accelerationStructure;
     mesh->blas.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(rayTracerVulkanInstance_.device, &accelerationStructureDeviceAddressInfo);
 
-    Debug::Log("Built blas for mesh (instanceId: " + std::to_string(mesh->instanceId) + ")");
+    Debug::Log("Built blas for mesh (sharedMeshInstanceId: " + std::to_string(mesh->sharedMeshInstanceId) + ")");
 
 }
 
-void PixelsForGlory::RayTracerAPI_Vulkan::BuildTlas(/* Pass in instanceId -> transformMatrix to build mesh instances for tlas from */)
+
+void PixelsForGlory::RayTracerAPI_Vulkan::AddTlasInstance(int meshInstanceId, int sharedMeshInstanceId, float* l2wMatrix)
 {
-    VkTransformMatrixKHR transform_matrix = {
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f };
+    RayTracerMeshInstanceData instance;
 
+    instance.meshInstanceId;
+    instance.sharedMeshInstanceId = sharedMeshInstanceId;
+    FloatArrayToMatrix(l2wMatrix, instance.worldTransform);
+
+    meshInstances.insert(std::make_pair(meshInstanceId, instance));
+
+    Debug::Log("Added mesh instance (meshInstanceId: " + std::to_string(meshInstanceId) + ")");
+}
+
+void PixelsForGlory::RayTracerAPI_Vulkan::BuildTlas()
+{
     std::vector<VkAccelerationStructureInstanceKHR> instances(meshes.size(), VkAccelerationStructureInstanceKHR{});
-
-    for (auto const& item : meshes)
+    for (auto const& item : meshInstances)
     {
-        auto mesh = item.second;
+        auto instance = item.second;
+        const auto& t = instance.worldTransform;
+        VkTransformMatrixKHR transform_matrix = {
+            t[0][0], t[0][1], t[0][2], t[0][3],
+            t[1][0], t[1][1], t[1][2], t[1][3],
+            t[2][0], t[2][1], t[2][2], t[2][3]
+        };
+            
         VkAccelerationStructureInstanceKHR accelerationStructureInstance = { };
         accelerationStructureInstance.transform = transform_matrix;
-        accelerationStructureInstance.instanceCustomIndex = mesh->instanceId;
+        accelerationStructureInstance.instanceCustomIndex = instance.meshInstanceId;
         accelerationStructureInstance.mask = 0xFF;
         accelerationStructureInstance.instanceShaderBindingTableRecordOffset = 0;
         accelerationStructureInstance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-        accelerationStructureInstance.accelerationStructureReference = mesh->blas.deviceAddress;
+        accelerationStructureInstance.accelerationStructureReference = meshes[instance.sharedMeshInstanceId]->blas.deviceAddress;
     }
 
     VulkanBuffer instancesBuffer;
@@ -945,8 +977,10 @@ void PixelsForGlory::RayTracerAPI_Vulkan::BuildTlas(/* Pass in instanceId -> tra
     accelerationStructureDeviceAddressInfo.accelerationStructure = tlas.accelerationStructure;
     tlas.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(rayTracerVulkanInstance_.device, &accelerationStructureDeviceAddressInfo);
 
-    Debug::Log("Built tlas");
+    Debug::Log("Succesfully built tlas");
 }
+
+
 
 VkDeviceOrHostAddressKHR PixelsForGlory::RayTracerAPI_Vulkan::GetBufferDeviceAddress(const VulkanBuffer& buffer) {
     VkBufferDeviceAddressInfoKHR info = {

@@ -8,10 +8,11 @@ using System;
 using System.Collections;
 using System.Runtime.InteropServices;
 using AOT;
+using System.Collections.Generic;
 
 #if UNTIY_EDITOR
 [InitializeOnLoad]
-#endif 
+#endif
 public class RayTracer : MonoBehaviour
 {
 #if UNTIY_EDITOR
@@ -43,7 +44,13 @@ public class RayTracer : MonoBehaviour
     //[DllImport("RenderingPlugin")]
     //private static extern void SetMeshBuffersFromUnity(IntPtr vertexBuffer, int vertexCount, IntPtr sourceVertices, IntPtr sourceNormals, IntPtr sourceUVs);
     [DllImport("RayTracingPlugin")]
-    private static extern void AddMesh(int instanceId, IntPtr vertices, IntPtr normals, IntPtr uvs, int vertexCount, IntPtr indices, int indexCount);
+    private static extern void AddMesh(int sharedMeshInstanceId, IntPtr vertices, IntPtr normals, IntPtr uvs, int vertexCount, IntPtr indices, int indexCount);
+
+    [DllImport("RayTracingPlugin")]
+    private static extern void AddTlasInstance(int meshInstanceId, int sharedMeshInstanceId, IntPtr l2wMatrix);
+
+    [DllImport("RayTracingPlugin")]
+    private static extern void BuildTlas();
 
 
     [DllImport("RayTracingPlugin")]
@@ -93,6 +100,8 @@ public class RayTracer : MonoBehaviour
     void Start()
     {
         SendMeshesToPlugin();
+        SendInstanceToPlugin();
+        BuildTlas();
         //CreateTextureAndPassToPlugin();
         //SendMeshBuffersToPlugin();
         //yield return StartCoroutine("CallPluginAtEndOfFrames");
@@ -130,9 +139,40 @@ public class RayTracer : MonoBehaviour
         }
     }
 
-    private void BuildAccelerationStructure()
+    private void SendInstanceToPlugin()
     {
-       
+        var foundMeshFilters = FindObjectsOfType<MeshFilter>();
+
+        // Get instance transforms for tlas
+        for (int i = 0; i < foundMeshFilters.Length; ++i)
+        {
+            var meshFilter = foundMeshFilters[i];
+
+            var l2wMatrix = new float[16] {
+                meshFilter.transform.localToWorldMatrix.m00,
+                meshFilter.transform.localToWorldMatrix.m01,
+                meshFilter.transform.localToWorldMatrix.m02,
+                meshFilter.transform.localToWorldMatrix.m03,
+                meshFilter.transform.localToWorldMatrix.m10,
+                meshFilter.transform.localToWorldMatrix.m11,
+                meshFilter.transform.localToWorldMatrix.m12,
+                meshFilter.transform.localToWorldMatrix.m13,
+                meshFilter.transform.localToWorldMatrix.m20,
+                meshFilter.transform.localToWorldMatrix.m21,
+                meshFilter.transform.localToWorldMatrix.m22,
+                meshFilter.transform.localToWorldMatrix.m23,
+                meshFilter.transform.localToWorldMatrix.m30,
+                meshFilter.transform.localToWorldMatrix.m31,
+                meshFilter.transform.localToWorldMatrix.m32,
+                meshFilter.transform.localToWorldMatrix.m33
+            };
+
+            var l2wMatrixHandle = GCHandle.Alloc(l2wMatrix, GCHandleType.Pinned);
+
+            AddTlasInstance(meshFilter.GetInstanceID(), meshFilter.sharedMesh.GetInstanceID(), l2wMatrixHandle.AddrOfPinnedObject());
+
+            l2wMatrixHandle.Free();
+        }
     }
 
     private IEnumerator CallPluginAtEndOfFrames()

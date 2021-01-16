@@ -33,6 +33,16 @@ namespace PixelsForGlory
         /// <param name="indexCount"></param>
         virtual void AddMesh(int instanceId, float* vertices, float* normals, float* uvs, int vertexCount, int* indices, int indexCount) = 0;
 
+        /// <summary>
+        /// Add transform for an instance to be build on the tlas
+        /// </summary>
+        /// <param name="meshInstanceId"></param>
+        /// <param name="sharedMeshInstanceId"></param>
+        /// <param name="l2wMatrix"></param>
+        virtual void AddTlasInstance(int meshInstanceId, int sharedMeshInstanceId, float* l2wMatrix) = 0;
+            
+        virtual void BuildTlas() = 0;
+
         
     };
 

@@ -287,7 +287,7 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 static void UNITY_INTERFACE_API OnRenderEvent(int eventID)
 {
     // Unknown / unsupported graphics device type? Do nothing
-    if (s_CurrentAPI == NULL)
+    if (s_CurrentAPI == nullptr)
     {
         return;
     }
@@ -303,12 +303,32 @@ static void UNITY_INTERFACE_API OnRenderEvent(int eventID)
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddMesh(int instanceId, float* vertices, float* normals, float* uvs, int vertexCount, int* indices, int indexCount)
 {
-    if (s_CurrentAPI == NULL)
+    if (s_CurrentAPI == nullptr)
     {
         return;
     }
 
     s_CurrentAPI->AddMesh(instanceId, vertices, normals, uvs, vertexCount, indices, indexCount);
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddTlasInstance(int meshInstanceId, int sharedMeshInstanceId, float* l2wMatrix)
+{
+    if (s_CurrentAPI == nullptr)
+    {
+        return;
+    }
+
+    s_CurrentAPI->AddTlasInstance(meshInstanceId, sharedMeshInstanceId, l2wMatrix);
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API BuildTlas()
+{
+    if (s_CurrentAPI == nullptr)
+    {
+        return;
+    }
+
+    s_CurrentAPI->BuildTlas();
 }
 
 extern "C" UnityRenderingEvent UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetRenderEventFunc()
