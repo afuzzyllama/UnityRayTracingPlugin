@@ -57,6 +57,7 @@ namespace PixelsForGlory
         virtual void UpdateSceneData(float* color) = 0;
 
         virtual void TraceRays() = 0;
+        virtual void CopyImageToTexture(void* TextureHandle) = 0;
     };
 
     // Create a graphics API implementation instance for the given API type.

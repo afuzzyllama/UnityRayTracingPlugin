@@ -32,6 +32,7 @@ VkResult PixelsForGlory::VulkanBuffer::Create(VkDevice device, VkPhysicalDeviceM
     size_ = size;
 
     result = vkCreateBuffer(device_, &bufferCreateInfo, nullptr, &buffer_);
+    VK_CHECK("vkCreateBuffer", result);
     if (VK_SUCCESS == result) {
         VkMemoryRequirements memoryRequirements;
         vkGetBufferMemoryRequirements(device_, buffer_, &memoryRequirements);
@@ -50,7 +51,7 @@ VkResult PixelsForGlory::VulkanBuffer::Create(VkDevice device, VkPhysicalDeviceM
         }
 
         result = vkAllocateMemory(device_, &memoryAllocateInfo, nullptr, &memory_);
-        VK_CHECK(result)
+        VK_CHECK("vkAllocateMemory", result)
         if (VK_SUCCESS != result) {
             vkDestroyBuffer(device_, buffer_, nullptr);
             buffer_ = VK_NULL_HANDLE;
@@ -58,7 +59,7 @@ VkResult PixelsForGlory::VulkanBuffer::Create(VkDevice device, VkPhysicalDeviceM
         }
         else {
             result = vkBindBufferMemory(device_, buffer_, memory_, 0);
-            VK_CHECK(result)
+            VK_CHECK("vkBindBufferMemory", result)
             if (VK_SUCCESS != result) {
                 vkDestroyBuffer(device_, buffer_, nullptr);
                 vkFreeMemory(device_, memory_, nullptr);

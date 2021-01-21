@@ -44,7 +44,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL Hook_vkCreateInstance(const VkInstanceCrea
     PFG_EDITORLOG("Hook_vkCreateInstance")
     vkCreateInstance = (PFN_vkCreateInstance)vkGetInstanceProcAddr(VK_NULL_HANDLE, "vkCreateInstance");
     VkResult result = vkCreateInstance(pCreateInfo, pAllocator, pInstance);
-    VK_CHECK(result)
+    VK_CHECK("vkCreateInstance", result)
     if (result == VK_SUCCESS)
     {
         LoadVulkanAPI(vkGetInstanceProcAddr, *pInstance);
@@ -229,7 +229,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL Hook_vkCreateDevice(VkPhysicalDevice physi
     deviceCreateInfo.pEnabledFeatures = nullptr; // Must be null since pNext != nullptr
 
     VkResult result = vkCreateDevice(physicalDevice, &deviceCreateInfo, pAllocator, pDevice);
-    VK_CHECK(result)
+    VK_CHECK("vkCreateDevice", result)
 
     if (result == VK_SUCCESS)
     {
@@ -320,7 +320,7 @@ namespace PixelsForGlory
             commandPoolCreateInfo.queueFamilyIndex = queueFamilyIndex;
             commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
             
-            VK_CHECK(vkCreateCommandPool(device, &commandPoolCreateInfo, nullptr, &commandPool))
+            VK_CHECK("vkCreateCommandPool", vkCreateCommandPool(device, &commandPoolCreateInfo, nullptr, &commandPool))
         }
 
         VkCommandBuffer CreateCommandBuffer(VkCommandBufferLevel level, bool begin)
@@ -332,14 +332,14 @@ namespace PixelsForGlory
             cmd_buf_allocate_info.commandBufferCount = 1;
 
             VkCommandBuffer command_buffer;
-            VK_CHECK(vkAllocateCommandBuffers(device, &cmd_buf_allocate_info, &command_buffer))
+            VK_CHECK("vkAllocateCommandBuffers", vkAllocateCommandBuffers(device, &cmd_buf_allocate_info, &command_buffer))
 
             // If requested, also start recording for the new command buffer
             if (begin)
             {
                 VkCommandBufferBeginInfo commandBufferBeginInfo = { };
                 commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-                VK_CHECK(vkBeginCommandBuffer(command_buffer, &commandBufferBeginInfo))
+                VK_CHECK("vkBeginCommandBuffer", vkBeginCommandBuffer(command_buffer, &commandBufferBeginInfo))
             }
 
             return command_buffer;
@@ -347,7 +347,7 @@ namespace PixelsForGlory
 
         void EndCommandBuffer(VkCommandBuffer commandBuffer)
         {
-            VK_CHECK(vkEndCommandBuffer(commandBuffer))
+            VK_CHECK("vkEndCommandBuffer", vkEndCommandBuffer(commandBuffer))
         }
 
         void SubmitCommandBuffer(VkCommandBuffer commandBuffer, VkQueue queue)
@@ -369,15 +369,15 @@ namespace PixelsForGlory
             fenceCreateInfo.flags = 0;
 
             VkFence fence;
-            VK_CHECK(vkCreateFence(device, &fenceCreateInfo, nullptr, &fence))
+            VK_CHECK("vkCreateFence", vkCreateFence(device, &fenceCreateInfo, nullptr, &fence))
 
-                // Submit to the queue
+            // Submit to the queue
             VkResult result = vkQueueSubmit(queue, 1, &submitInfo, fence);
-            VK_CHECK(result)
+            VK_CHECK("vkQueueSubmit", result)
 
                 // Wait for the fence to signal that command buffer has finished executing
             const uint64_t DEFAULT_FENCE_TIMEOUT = 100000000000;
-            VK_CHECK(vkWaitForFences(device, 1, &fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT))
+            VK_CHECK("vkWaitForFences", vkWaitForFences(device, 1, &fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT))
 
             vkDestroyFence(device, fence, nullptr);
         }
@@ -389,7 +389,7 @@ namespace PixelsForGlory
                 return;
             }
 
-            VK_CHECK(vkEndCommandBuffer(commandBuffer))
+            VK_CHECK("vkEndCommandBuffer", vkEndCommandBuffer(commandBuffer))
 
             VkSubmitInfo submitInfo = {};
             submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -408,15 +408,15 @@ namespace PixelsForGlory
             fenceCreateInfo.flags = 0;
 
             VkFence fence;
-            VK_CHECK(vkCreateFence(device, &fenceCreateInfo, nullptr, &fence))
+            VK_CHECK("vkCreateFence", vkCreateFence(device, &fenceCreateInfo, nullptr, &fence))
 
             // Submit to the queue
             VkResult result = vkQueueSubmit(queue, 1, &submitInfo, fence);
-            VK_CHECK(result)
+            VK_CHECK("vkQueueSubmit", result)
 
             // Wait for the fence to signal that command buffer has finished executing
             const uint64_t DEFAULT_FENCE_TIMEOUT = 100000000000;
-            VK_CHECK(vkWaitForFences(device, 1, &fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT))
+            VK_CHECK("vkWaitForFences", vkWaitForFences(device, 1, &fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT))
 
             vkDestroyFence(device, fence, nullptr);
 
@@ -506,11 +506,10 @@ namespace PixelsForGlory
         virtual void BuildTlas();
         virtual void Prepare(int width, int height);
         virtual void TraceRays();
+        virtual void CopyImageToTexture(void* TextureHandle);
 
         virtual void UpdateCamera(float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov);
         virtual void UpdateSceneData(float* color);
-
-       
 
     private:
         IUnityGraphicsVulkan* graphicsInterface_;
@@ -550,6 +549,8 @@ namespace PixelsForGlory
 
         uint32_t width_;
         uint32_t height_;
+
+        bool ready_;
 
         //std::map<unsigned long long, VulkanBuffers> m_DeleteQueue;
 
@@ -591,6 +592,7 @@ PixelsForGlory::RayTracerAPI_Vulkan::RayTracerAPI_Vulkan()
     , pipelineLayout_(VK_NULL_HANDLE)
     , pipeline_(VK_NULL_HANDLE)
     , shadersFolder_("C:\\Users\\afuzzyllama\\Development\\Unity3d\\RayTracing\\UnityProject\\Assets\\Plugins\\x86_64\\")
+    , ready_(false)
 {}
 
 void PixelsForGlory::RayTracerAPI_Vulkan::ProcessDeviceEvent(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces)
@@ -948,7 +950,7 @@ void PixelsForGlory::RayTracerAPI_Vulkan::BuildBlas(uint32_t sharedMeshIndex)
     accelerationStructureCreateInfo.buffer = sharedMeshesPool_[sharedMeshIndex]->blas.buffer.GetBuffer();
     accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
     accelerationStructureCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-    VK_CHECK(vkCreateAccelerationStructureKHR(rayTracerVulkanInstance_.device , &accelerationStructureCreateInfo, nullptr, &sharedMeshesPool_[sharedMeshIndex]->blas.accelerationStructure))
+    VK_CHECK("vkCreateAccelerationStructureKHR", vkCreateAccelerationStructureKHR(rayTracerVulkanInstance_.device , &accelerationStructureCreateInfo, nullptr, &sharedMeshesPool_[sharedMeshIndex]->blas.accelerationStructure))
 
     // The actual build process starts here
     // Create a scratch buffer as a temporary storage for the acceleration structure build
@@ -1098,7 +1100,7 @@ void PixelsForGlory::RayTracerAPI_Vulkan::BuildTlas()
     accelerationStructureCreateInfo.buffer = tlas_.buffer.GetBuffer();
     accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
     accelerationStructureCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-    VK_CHECK(vkCreateAccelerationStructureKHR(rayTracerVulkanInstance_.device, &accelerationStructureCreateInfo, nullptr, &tlas_.accelerationStructure))
+    VK_CHECK("vkCreateAccelerationStructureKHR", vkCreateAccelerationStructureKHR(rayTracerVulkanInstance_.device, &accelerationStructureCreateInfo, nullptr, &tlas_.accelerationStructure))
 
     // The actual build process starts here
 
@@ -1160,11 +1162,69 @@ void PixelsForGlory::RayTracerAPI_Vulkan::Prepare(int width, int height)
     CreateDescriptorPool();
     UpdateDescriptorSets();
     BuildCommandBuffer();
+    ready_ = true;
 }
 
 void PixelsForGlory::RayTracerAPI_Vulkan::TraceRays()
 {
+    if (!ready_)
+    {
+        return;
+    }
+
     rayTracerVulkanInstance_.SubmitCommandBuffer(commandBuffer_, rayTracerVulkanInstance_.graphicsQueue);
+}
+
+void PixelsForGlory::RayTracerAPI_Vulkan::CopyImageToTexture(void* textureHandle)
+{
+    if (!ready_)
+    {
+        return;
+    }
+
+    UnityVulkanRecordingState recordingState;
+    if (!graphicsInterface_->CommandRecordingState(&recordingState, kUnityVulkanGraphicsQueueAccess_DontCare))
+    {
+        return;
+    }
+
+    // cannot do resource uploads inside renderpass?
+    graphicsInterface_->EnsureOutsideRenderPass();
+
+    UnityVulkanImage image;
+    if (!graphicsInterface_->AccessTexture(textureHandle,
+                                           UnityVulkanWholeImage, 
+                                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
+                                           VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, 
+                                           kUnityVulkanResourceAccess_PipelineBarrier, 
+                                           &image))
+        
+
+    if (!graphicsInterface_->CommandRecordingState(&recordingState, kUnityVulkanGraphicsQueueAccess_DontCare))
+    {
+        return;
+    }
+
+    VkImageCopy region;
+    region.extent.width = width_;
+    region.extent.height = height_;
+    region.extent.depth = 1;
+    region.srcOffset.x = 0;
+    region.srcOffset.y = 0;
+    region.srcOffset.z = 0;
+    region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.srcSubresource.baseArrayLayer = 0;
+    region.srcSubresource.layerCount = 1;
+    region.srcSubresource.mipLevel = 0;
+    region.dstOffset.x = 0;
+    region.dstOffset.y = 0;
+    region.dstOffset.z = 0;
+    region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.dstSubresource.baseArrayLayer = 0;
+    region.dstSubresource.layerCount = 1;
+    region.dstSubresource.mipLevel = 0;
+
+    vkCmdCopyImage(recordingState.commandBuffer, offscreenImage_->GetImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 }
 
 void PixelsForGlory::RayTracerAPI_Vulkan::UpdateCamera(float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov)
@@ -1274,7 +1334,7 @@ void PixelsForGlory::RayTracerAPI_Vulkan::CreateDescriptorSetsLayouts() {
         descriptorSet0LayoutCreateInfo.bindingCount = static_cast<uint32_t>(bindings.size());
         descriptorSet0LayoutCreateInfo.pBindings = bindings.data();
 
-        VK_CHECK(vkCreateDescriptorSetLayout(rayTracerVulkanInstance_.device, &descriptorSet0LayoutCreateInfo, nullptr, &descriptorSetLayouts_[0]))
+        VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(rayTracerVulkanInstance_.device, &descriptorSet0LayoutCreateInfo, nullptr, &descriptorSetLayouts_[0]))
     }
 
     // set 1
@@ -1300,7 +1360,7 @@ void PixelsForGlory::RayTracerAPI_Vulkan::CreateDescriptorSetsLayouts() {
         descriptorSet1LayoutCreateInfo.pBindings = &verticesLayoutBinding;
         descriptorSet1LayoutCreateInfo.pNext = &set1BindingFlags;
 
-        VK_CHECK(vkCreateDescriptorSetLayout(rayTracerVulkanInstance_.device, &descriptorSet1LayoutCreateInfo, nullptr, &descriptorSetLayouts_[1]))
+        VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(rayTracerVulkanInstance_.device, &descriptorSet1LayoutCreateInfo, nullptr, &descriptorSetLayouts_[1]))
     }
 
     // set 2
@@ -1326,7 +1386,7 @@ void PixelsForGlory::RayTracerAPI_Vulkan::CreateDescriptorSetsLayouts() {
         descriptorSet2LayoutCreateInfo.pBindings = &indicesLayoutBinding;
         descriptorSet2LayoutCreateInfo.pNext = &set2BindingFlags;
 
-        VK_CHECK(vkCreateDescriptorSetLayout(rayTracerVulkanInstance_.device, &descriptorSet2LayoutCreateInfo, nullptr, &descriptorSetLayouts_[2]))
+        VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(rayTracerVulkanInstance_.device, &descriptorSet2LayoutCreateInfo, nullptr, &descriptorSetLayouts_[2]))
     }
 }
 
@@ -1337,7 +1397,7 @@ void PixelsForGlory::RayTracerAPI_Vulkan::CreatePipeline()
     pipelineLayoutCreateInfo.setLayoutCount = DESCRIPTOR_SET_SIZE;
     pipelineLayoutCreateInfo.pSetLayouts = descriptorSetLayouts_.data();
 
-    VK_CHECK(vkCreatePipelineLayout(rayTracerVulkanInstance_.device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout_));
+    VK_CHECK("vkCreatePipelineLayout", vkCreatePipelineLayout(rayTracerVulkanInstance_.device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout_));
 
     VulkanShader rayGenShader(rayTracerVulkanInstance_.device);
     VulkanShader rayChitShader(rayTracerVulkanInstance_.device);
@@ -1374,7 +1434,7 @@ void PixelsForGlory::RayTracerAPI_Vulkan::CreatePipeline()
     rayPipelineInfo.maxPipelineRayRecursionDepth = 1;
     rayPipelineInfo.layout = pipelineLayout_;
 
-    VK_CHECK(vkCreateRayTracingPipelinesKHR(rayTracerVulkanInstance_.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rayPipelineInfo, nullptr, &pipeline_))
+    VK_CHECK("vkCreateRayTracingPipelinesKHR", vkCreateRayTracingPipelinesKHR(rayTracerVulkanInstance_.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rayPipelineInfo, nullptr, &pipeline_))
 
     shaderBindingTable_.CreateSBT(rayTracerVulkanInstance_.device, rayTracerVulkanInstance_.physicalDeviceMemoryProperties, pipeline_);
 
@@ -1405,7 +1465,7 @@ void PixelsForGlory::RayTracerAPI_Vulkan::CreateDescriptorPool()
     descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     descriptorPoolCreateInfo.pPoolSizes = poolSizes.data();
 
-    VK_CHECK(vkCreateDescriptorPool(rayTracerVulkanInstance_.device, &descriptorPoolCreateInfo, nullptr, &descriptorPool_))
+    VK_CHECK("vkCreateDescriptorPool", vkCreateDescriptorPool(rayTracerVulkanInstance_.device, &descriptorPoolCreateInfo, nullptr, &descriptorPool_))
 
     Debug::Log("Successfully created descriptor pool");
 }
@@ -1474,7 +1534,7 @@ void PixelsForGlory::RayTracerAPI_Vulkan::UpdateDescriptorSets()
     descriptorSetAllocateInfo.descriptorSetCount = DESCRIPTOR_SET_SIZE;
     descriptorSetAllocateInfo.pSetLayouts = descriptorSetLayouts_.data();
 
-    VK_CHECK(vkAllocateDescriptorSets(rayTracerVulkanInstance_.device, &descriptorSetAllocateInfo, descriptorSets_.data()))
+    VK_CHECK("vkAllocateDescriptorSets", vkAllocateDescriptorSets(rayTracerVulkanInstance_.device, &descriptorSetAllocateInfo, descriptorSets_.data()))
 
     std::vector<VkWriteDescriptorSet> descriptorWrites;
     // Acceleration Structure

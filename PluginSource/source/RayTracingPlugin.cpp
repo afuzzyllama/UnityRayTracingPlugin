@@ -15,9 +15,21 @@
 static float g_Time;
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetTimeFromUnity (float t) { g_Time = t; }
 
+static void* g_TextureHandle = nullptr;
+static int   g_TextureWidth = 0;
+static int   g_TextureHeight = 0;
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetTargetTexture(void* textureHandle, int width, int height)
+{
+    // A script calls this at initialization time; just remember the texture pointer here.
+    // Will update texture pixels each frame from the plugin rendering event (texture update
+    // needs to happen on the rendering thread).
+    g_TextureHandle = textureHandle;
+    g_TextureWidth = width;
+    g_TextureHeight = height;
+}
+
 // --------------------------------------------------------------------------
 // UnitySetInterfaces
-
 static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType);
 
 static IUnityInterfaces* s_UnityInterfaces = NULL;
@@ -86,6 +98,16 @@ static void UNITY_INTERFACE_API OnRenderEvent(int eventID)
     }
 
     s_CurrentAPI->TraceRays();
+    
+    void* textureHandle = g_TextureHandle;
+    int width = g_TextureWidth;
+    int height = g_TextureHeight;
+    if (!textureHandle)
+    {
+        return;
+    }
+
+    s_CurrentAPI->CopyImageToTexture(textureHandle);
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetSharedMeshIndex(int sharedMeshInstanceId)

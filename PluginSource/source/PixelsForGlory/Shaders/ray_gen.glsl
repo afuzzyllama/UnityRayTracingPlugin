@@ -469,10 +469,10 @@ layout(location = LOCATION_SHADOW_RAY)  rayPayloadEXT ShaderShadowRayPayload Sha
 
 void main() {
 
-    // // Get current pixel information    
-    // const vec2 curPixel = vec2(gl_LaunchIDEXT.xy);
-    // const vec2 bottomRight = vec2(gl_LaunchSizeEXT.xy - 1);
-    // const vec2 uv = (curPixel / bottomRight) * 2.0f - 1.0f;
+    // Get current pixel information    
+    //const vec2 curPixel = vec2(gl_LaunchIDEXT.xy);
+    //const vec2 bottomRight = vec2(gl_LaunchSizeEXT.xy - 1);
+    //const vec2 uv = (curPixel / bottomRight) * 2.0f - 1.0f;
     // const float aspect = float(gl_LaunchSizeEXT.x) / float(gl_LaunchSizeEXT.y);
 
     // // Kick off root ray!
@@ -492,8 +492,10 @@ void main() {
     // rays[0] = originRay;
     // rayCount = 1;
 
-    // vec3 finalColor = TraceRay();
+     //vec3 finalColor = TraceRay();
+
+     vec3 finalColor = vec3(1.0f, 0.0f, 0.0f);
 
     // // Return result to image      
-    // imageStore(ResultImage, ivec2(gl_LaunchIDEXT.xy), vec4(LinearToSrgb(finalColor), 1.0f));
+    imageStore(ResultImage, ivec2(gl_LaunchIDEXT.xy), vec4(finalColor, 1.0f));
 }

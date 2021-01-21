@@ -52,15 +52,15 @@ static const std::string vkresult_to_string(VkResult result)
 }
 
 #ifndef VK_CHECK
-#define VK_CHECK(x)                                                                 \
-    do                                                                              \
-    {                                                                               \
-        VkResult err = x;                                                           \
-        if (err)                                                                    \
-        {                                                                           \
-            PFG_EDITORLOGERROR("Detected Vulkan error: " + vkresult_to_string(err)) \
-            abort();                                                                \
-        }                                                                           \
+#define VK_CHECK(fn, code)                                                                                                                                        \
+    do                                                                                                                                                            \
+    {                                                                                                                                                             \
+        VkResult err = code;                                                                                                                                      \
+        if (err)                                                                                                                                                  \
+        {                                                                                                                                                         \
+            PFG_EDITORLOGERROR(std::string(__FILE__) + " (" + std::to_string(__LINE__) + "): " + std::string(fn) + " returned error: " + vkresult_to_string(err)) \
+            abort();                                                                                                                                              \
+        }                                                                                                                                                         \
     } while (0);
 #endif
 

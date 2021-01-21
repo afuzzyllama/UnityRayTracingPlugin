@@ -181,7 +181,6 @@ bool PixelsForGlory::VulkanShaderBindingTable::CreateSBT(VkDevice device, VkPhys
             sbtSize, 
             VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
             VulkanBuffer::kDefaultMemoryPropertyFlags);
-    VK_CHECK(error);
 
     if (VK_SUCCESS != error) {
         return false;
@@ -190,7 +189,7 @@ bool PixelsForGlory::VulkanShaderBindingTable::CreateSBT(VkDevice device, VkPhys
     // get shader group handles
     std::vector<uint8_t> groupHandles(this->GetNumGroups() * shaderHandleSize_);
     error = vkGetRayTracingShaderGroupHandlesKHR(device, pipeline, 0, this->GetNumGroups(), groupHandles.size(), groupHandles.data());
-    VK_CHECK(error);
+    VK_CHECK("vkGetRayTracingShaderGroupHandlesKHR", error);
 
     // now we fill our SBT
     uint8_t* mem = static_cast<uint8_t*>(sbtBuffer_.Map());

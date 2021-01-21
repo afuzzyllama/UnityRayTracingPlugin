@@ -9,6 +9,9 @@ namespace PixelsForGlory
         public static extern void SetTimeFromUnity(float t);
 
         [DllImport("RayTracingPlugin")]
+        public static extern void SetTargetTexture(IntPtr texture, int width, int height);
+
+        [DllImport("RayTracingPlugin")]
         public static extern int GetSharedMeshIndex(int sharedMeshInstanceId);
 
         [DllImport("RayTracingPlugin")]
@@ -23,10 +26,8 @@ namespace PixelsForGlory
         [DllImport("RayTracingPlugin")]
         public static extern void Prepare(int width, int height);
 
-
         [DllImport("RayTracingPlugin")]
         public static extern void UpdateCamera(IntPtr camPos, IntPtr camDir, IntPtr camUp, IntPtr camSide, IntPtr camNearFarFov);
-
 
         [DllImport("RayTracingPlugin")]
         public static extern void UpdateSceneData(IntPtr color);
