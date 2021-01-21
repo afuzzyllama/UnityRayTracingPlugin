@@ -8,8 +8,61 @@
 #define VK_ENABLE_BETA_EXTENSIONS
 #endif 
 
+#include <string>
 #include "vulkan/vulkan.h"
 #include "volk.h"
+
+#include "PixelsForGlory/Debug.h"
+
+
+static const std::string vkresult_to_string(VkResult result)
+{
+    switch (result)
+    {
+#define STR(r)   \
+    case VK_##r: \
+        return #r
+        STR(NOT_READY);
+        STR(TIMEOUT);
+        STR(EVENT_SET);
+        STR(EVENT_RESET);
+        STR(INCOMPLETE);
+        STR(ERROR_OUT_OF_HOST_MEMORY);
+        STR(ERROR_OUT_OF_DEVICE_MEMORY);
+        STR(ERROR_INITIALIZATION_FAILED);
+        STR(ERROR_DEVICE_LOST);
+        STR(ERROR_MEMORY_MAP_FAILED);
+        STR(ERROR_LAYER_NOT_PRESENT);
+        STR(ERROR_EXTENSION_NOT_PRESENT);
+        STR(ERROR_FEATURE_NOT_PRESENT);
+        STR(ERROR_INCOMPATIBLE_DRIVER);
+        STR(ERROR_TOO_MANY_OBJECTS);
+        STR(ERROR_FORMAT_NOT_SUPPORTED);
+        STR(ERROR_SURFACE_LOST_KHR);
+        STR(ERROR_NATIVE_WINDOW_IN_USE_KHR);
+        STR(SUBOPTIMAL_KHR);
+        STR(ERROR_OUT_OF_DATE_KHR);
+        STR(ERROR_INCOMPATIBLE_DISPLAY_KHR);
+        STR(ERROR_VALIDATION_FAILED_EXT);
+        STR(ERROR_INVALID_SHADER_NV);
+#undef STR
+    default:
+        return "UNKNOWN_ERROR";
+    }
+}
+
+#ifndef VK_CHECK
+#define VK_CHECK(x)                                                                 \
+    do                                                                              \
+    {                                                                               \
+        VkResult err = x;                                                           \
+        if (err)                                                                    \
+        {                                                                           \
+            PFG_EDITORLOGERROR("Detected Vulkan error: " + vkresult_to_string(err)) \
+            abort();                                                                \
+        }                                                                           \
+    } while (0);
+#endif
 
 #define GLM_ENABLE_EXPERIMENTAL
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -41,14 +94,8 @@ uint32_t static GetMemoryType(VkPhysicalDeviceMemoryProperties physicalDeviceMem
 
 void static FloatArrayToMatrix(const float* src, mat4& dst) {
 
-    int i = 0;
-    for (int r = 0; r < 4; ++r)
-    {
-        for (int c = 0; c < 4; ++c)
-        {
-            dst[r][c] = src[i];
-            ++i;
-        }
-    }
+    dst = mat4(src[0],  src[1],  src[2],  src[3],
+               src[4],  src[5],  src[6],  src[7],
+               src[8],  src[9],  src[10], src[10],
+               src[12], src[13], src[14], src[15]);
 }
-

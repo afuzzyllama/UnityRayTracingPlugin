@@ -2,6 +2,8 @@
 
 #include <memory>
 
+#include "Debug.h"
+
 PixelsForGlory::VulkanBuffer::VulkanBuffer()
     : device_(VK_NULL_HANDLE)
     , buffer_(VK_NULL_HANDLE)
@@ -10,7 +12,6 @@ PixelsForGlory::VulkanBuffer::VulkanBuffer()
 {}
 
 PixelsForGlory::VulkanBuffer::~VulkanBuffer() {
-    this->Destroy();
 }
 
 VkResult PixelsForGlory::VulkanBuffer::Create(VkDevice device, VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryProperties) {
@@ -49,6 +50,7 @@ VkResult PixelsForGlory::VulkanBuffer::Create(VkDevice device, VkPhysicalDeviceM
         }
 
         result = vkAllocateMemory(device_, &memoryAllocateInfo, nullptr, &memory_);
+        VK_CHECK(result)
         if (VK_SUCCESS != result) {
             vkDestroyBuffer(device_, buffer_, nullptr);
             buffer_ = VK_NULL_HANDLE;
@@ -56,6 +58,7 @@ VkResult PixelsForGlory::VulkanBuffer::Create(VkDevice device, VkPhysicalDeviceM
         }
         else {
             result = vkBindBufferMemory(device_, buffer_, memory_, 0);
+            VK_CHECK(result)
             if (VK_SUCCESS != result) {
                 vkDestroyBuffer(device_, buffer_, nullptr);
                 vkFreeMemory(device_, memory_, nullptr);
@@ -69,6 +72,12 @@ VkResult PixelsForGlory::VulkanBuffer::Create(VkDevice device, VkPhysicalDeviceM
 }
 
 void PixelsForGlory::VulkanBuffer::Destroy() {
+    if (device_ == VK_NULL_HANDLE)
+    {
+        // No device set, nothing was created
+        return;
+    }
+    
     if (buffer_) {
         vkDestroyBuffer(device_, buffer_, nullptr);
         buffer_ = VK_NULL_HANDLE;

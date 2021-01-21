@@ -9,6 +9,9 @@
 
 #include "../Unity/IUnityInterface.h"
 
+#define PFG_EDITORLOG(msg) fprintf(stdout, ("[Raytracing Plugin] " + std::string(msg) + "\n").c_str());
+#define PFG_EDITORLOGERROR(msg) fprintf(stderr, ("[Raytracing Plugin] " + std::string(msg) + "\n").c_str());
+
 extern "C"
 {
     //Create a callback delegate

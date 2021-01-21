@@ -21,8 +21,12 @@
   <ItemGroup>
     <ClInclude Include="source\PixelsForGlory\Debug.h" />
     <ClInclude Include="source\PixelsForGlory\RayTracerAPI.h" />
+    <ClInclude Include="source\PixelsForGlory\ResourcePool.h" />
+    <ClInclude Include="source\PixelsForGlory\ShaderConstants.h" />
     <ClInclude Include="source\PixelsForGlory\VulkanBuffer.h" />
-    <ClInclude Include="source\PixelsForGlory\VulkanRayTracer.h" />
+    <ClInclude Include="source\PixelsForGlory\VulkanImage.h" />
+    <ClInclude Include="source\PixelsForGlory\VulkanShader.h" />
+    <ClInclude Include="source\PixelsForGlory\VulkanShaderBindingTable.h" />
     <ClInclude Include="source\PlatformBase.h" />
     <ClInclude Include="source\Unity\IUnityGraphics.h" />
     <ClInclude Include="source\Unity\IUnityGraphicsVulkan.h" />
@@ -34,7 +38,9 @@
     <ClCompile Include="source\PixelsForGlory\RayTracerAPI.cpp" />
     <ClCompile Include="source\PixelsForGlory\RayTracerAPI_Vulkan.cpp" />
     <ClCompile Include="source\PixelsForGlory\VulkanBuffer.cpp" />
-    <ClCompile Include="source\PixelsForGlory\VulkanRayTracer.cpp" />
+    <ClCompile Include="source\PixelsForGlory\VulkanImage.cpp" />
+    <ClCompile Include="source\PixelsForGlory\VulkanShader.cpp" />
+    <ClCompile Include="source\PixelsForGlory\VulkanShaderBindingTable.cpp" />
     <ClCompile Include="source\RayTracingPlugin.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -149,7 +155,7 @@ ENDLOCAL
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalIncludeDirectories>$(SolutionDir)library\glm\0.9.9.8;$(SolutionDir)library\volk\1.2.162;%VULKAN_SDK%\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)library\stb\2020-07-13;$(SolutionDir)library\glm\0.9.9.8;$(SolutionDir)library\volk\1.2.162;%VULKAN_SDK%\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <DisableSpecificWarnings>26812;</DisableSpecificWarnings>
     </ClCompile>
@@ -222,7 +228,7 @@ ENDLOCAL
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalIncludeDirectories>$(SolutionDir)library\glm\0.9.9.8;$(SolutionDir)library\volk\1.2.162;%VULKAN_SDK%\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)library\stb\2020-07-13;$(SolutionDir)library\glm\0.9.9.8;$(SolutionDir)library\volk\1.2.162;%VULKAN_SDK%\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <DisableSpecificWarnings>26812;</DisableSpecificWarnings>
     </ClCompile>
