@@ -1,14 +1,14 @@
 #pragma once
 
-#include "../vulkan.h"
+#include "../../vulkan.h"
 
-namespace PixelsForGlory
+namespace PixelsForGlory::Vulkan
 {
-    class VulkanImage {
+    class Image {
     public:
-        VulkanImage();
-        VulkanImage(VkDevice device, VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties, VkCommandPool commandPool, VkQueue transferQueue);
-        ~VulkanImage();
+        Image();
+        Image(VkDevice device, VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties);
+        ~Image();
 
         /// <summary>
         /// Create image
@@ -33,12 +33,14 @@ namespace PixelsForGlory
         void Destroy();
 
         /// <summary>
-        /// Load image from file with passed in formation
+        /// Load image from file with passed information
         /// </summary>
         /// <param name="fileName"></param>
         /// <param name="format"></param>
+        /// <param name="commandBuffer"></param>
+        /// <param name="transferQueue"></param>
         /// <returns></returns>
-        bool Load(const char* fileName, VkFormat format);
+        bool Load(const char* fileName, VkFormat format, VkCommandBuffer commandBuffer, VkQueue transferQueue);
 
         /// <summary>
         /// Create image view
@@ -68,8 +70,6 @@ namespace PixelsForGlory
     private:
         VkDevice                            device_;
         VkPhysicalDeviceMemoryProperties    physicalDeviceMemoryProperties_;
-        VkCommandPool                       commandPool_;
-        VkQueue                             transferQueue_;
         VkFormat                            format_;
         VkImage                             image_;
         VkDeviceMemory                      memory_;

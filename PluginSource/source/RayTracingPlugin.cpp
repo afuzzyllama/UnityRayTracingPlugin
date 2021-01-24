@@ -9,6 +9,9 @@
 
 #include "PixelsForGlory/Debug.h"
 
+#define PLUGIN_CHECK()  if (s_CurrentAPI == nullptr) { return; }
+#define PLUGIN_CHECK_RETURN(returnValue)  if (s_CurrentAPI == nullptr) { return returnValue; }
+
 // --------------------------------------------------------------------------
 // SetTimeFromUnity, an example function we export which is called by one of the scripts.
 
@@ -62,29 +65,36 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload()
 // GraphicsDeviceEvent
 
 
-static PixelsForGlory::RayTracerAPI* s_CurrentAPI = NULL;
+static PixelsForGlory::RayTracerAPI* s_CurrentAPI = nullptr;
 static UnityGfxRenderer s_DeviceType = kUnityGfxRendererNull;
 static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType)
 {
     // Create graphics API implementation upon initialization
     if (eventType == kUnityGfxDeviceEventInitialize)
     {
-        assert(s_CurrentAPI == NULL);
+        assert(s_CurrentAPI == nullptr);
         s_DeviceType = s_Graphics->GetRenderer();
         s_CurrentAPI = PixelsForGlory::CreateRayTracerAPI(s_DeviceType);
     }
 
     // Let the implementation process the device related events
+    bool success = false;
     if (s_CurrentAPI)
     {
-        s_CurrentAPI->ProcessDeviceEvent(eventType, s_UnityInterfaces);
+        success = s_CurrentAPI->ProcessDeviceEvent(eventType, s_UnityInterfaces);
+    }
+
+    // If kUnityGfxDeviceEventInitialize was not successful, we don't want the plugin to run
+    if (eventType == kUnityGfxDeviceEventInitialize && success == false)
+    {
+        s_CurrentAPI = nullptr;
+        s_DeviceType = kUnityGfxRendererNull;
     }
 
     // Cleanup graphics API implementation upon shutdown
     if (eventType == kUnityGfxDeviceEventShutdown)
     {
-        delete s_CurrentAPI;
-        s_CurrentAPI = NULL;
+        s_CurrentAPI = nullptr;
         s_DeviceType = kUnityGfxRendererNull;
     }
 }
@@ -92,10 +102,7 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 static void UNITY_INTERFACE_API OnRenderEvent(int eventID)
 {
     // Unknown / unsupported graphics device type? Do nothing
-    if (s_CurrentAPI == nullptr)
-    {
-        return;
-    }
+    PLUGIN_CHECK()
 
     s_CurrentAPI->TraceRays();
     
@@ -110,73 +117,66 @@ static void UNITY_INTERFACE_API OnRenderEvent(int eventID)
     s_CurrentAPI->CopyImageToTexture(textureHandle);
 }
 
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, void* textureHandle)
+{
+    PLUGIN_CHECK_RETURN(0)
+
+    return s_CurrentAPI->SetRenderTarget(cameraInstanceId, unityTextureFormat, width, height, textureHandle);
+}
+
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetSharedMeshIndex(int sharedMeshInstanceId)
 {
-    if (s_CurrentAPI == nullptr)
-    {
-        return -1;
-    }
+    PLUGIN_CHECK_RETURN(-1)
 
     return s_CurrentAPI->GetSharedMeshIndex(sharedMeshInstanceId);
 }
 
 
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddMesh(int instanceId, float* vertices, float* normals, float* uvs, int vertexCount, int* indices, int indexCount)
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddSharedMesh(int instanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount)
 {
-    if (s_CurrentAPI == nullptr)
-    {
-        return -1;
-    }
+    PLUGIN_CHECK_RETURN(-1)
 
-    return s_CurrentAPI->AddMesh(instanceId, vertices, normals, uvs, vertexCount, indices, indexCount);
+    return s_CurrentAPI->AddSharedMesh(instanceId, verticesArray, normalsArray, uvsArray, vertexCount, indicesArray, indexCount);
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddTlasInstance(int sharedMeshIndex, float* l2wMatrix)
 {
-    if (s_CurrentAPI == nullptr)
-    {
-        return -1;
-    }
+    PLUGIN_CHECK_RETURN(-1)
 
     return s_CurrentAPI->AddTlasInstance(sharedMeshIndex, l2wMatrix);
 }
 
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RemoveTlasInstance(int meshInstanceIndex)
+{
+    PLUGIN_CHECK()
+
+    s_CurrentAPI->RemoveTlasInstance(meshInstanceIndex);
+}
+
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API BuildTlas()
 {
-    if (s_CurrentAPI == nullptr)
-    {
-        return;
-    }
+    PLUGIN_CHECK()
 
     s_CurrentAPI->BuildTlas();
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API Prepare(int width, int height)
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API Prepare()
 {
-    if (s_CurrentAPI == nullptr)
-    {
-        return;
-    }
+    PLUGIN_CHECK()
 
-    s_CurrentAPI->Prepare(width, height);
+    s_CurrentAPI->Prepare();
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateCamera(float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov)
 {
-    if (s_CurrentAPI == nullptr)
-    {
-        return;
-    }
+    PLUGIN_CHECK()
 
     s_CurrentAPI->UpdateCamera(camPos, camDir, camUp, camSide, camNearFarFov);
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateSceneData(float* color)
 {
-    if (s_CurrentAPI == nullptr)
-    {
-        return;
-    }
+    PLUGIN_CHECK()
 
     s_CurrentAPI->UpdateSceneData(color);
 }

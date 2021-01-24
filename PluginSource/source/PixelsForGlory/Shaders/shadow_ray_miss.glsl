@@ -2,7 +2,7 @@
 #extension GL_EXT_ray_tracing : enable
 #extension GL_GOOGLE_include_directive : require
 
-#include "../ShaderConstants.h"
+#include "../Vulkan/ShaderConstants.h"
 
 layout(location = LOCATION_SHADOW_RAY) rayPayloadInEXT ShaderShadowRayPayload ShadowRay;
 

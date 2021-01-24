@@ -72,7 +72,11 @@ namespace PixelsForGlory
         void remove(uint32_t index)
         {
             pool_[index] = T();
-            std::remove(in_use_index_.begin(), in_use_index_.end(), index);
+
+            // Remove the index from the in_use vector
+            in_use_index_.erase(std::remove(in_use_index_.begin(), in_use_index_.end(), index), in_use_index_.end());
+
+            // Add it to the available vector
             available_index_.push_back(index);
         }
 

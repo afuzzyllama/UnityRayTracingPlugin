@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../PlatformBase.h"
 #include "../Unity/IUnityGraphics.h"
 
 #include <stddef.h>
@@ -14,16 +15,33 @@ namespace PixelsForGlory
         virtual ~RayTracerAPI() { }
 
         /// <summary>
+        /// Creates or updates a camera render target
+        /// </summary>
+        /// <param name="cameraInstanceId"></param>
+        /// <param name="unityTextureFormat"></param>
+        /// <param name="width"></param>
+        /// <param name="height"></param>
+        /// <param name="textureHandle">Destination texture for render</param>
+        /// <returns>1 if successful, 0 otherwise</returns>
+        virtual int SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, void* textureHandle) = 0;
+
+        /// <summary>
         /// Process general event like initialization, shutdown, device loss/reset etc.
         /// </summary>
         /// <param name="type"></param>
         /// <param name="interfaces"></param>
-        virtual void ProcessDeviceEvent(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces) = 0;
+        /// <returns>true if processing was successful, false otherwise</returns>
+        virtual bool ProcessDeviceEvent(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces) = 0;
 
+        /// <summary>
+        /// Method to check if a shared mesh has already been added, saves gathering handles if exists
+        /// </summary>
+        /// <param name="sharedMeshInstanceId"></param>
+        /// <returns></returns>
         virtual int GetSharedMeshIndex(int sharedMeshInstanceId) = 0;
 
         /// <summary>
-        /// Add a mesh that can be ray traced
+        /// Add a shared mesh that can be ray traced
         /// </summary>
         /// <param name="instanceId"></param>
         /// <param name="vertices"></param>
@@ -33,7 +51,7 @@ namespace PixelsForGlory
         /// <param name="uvCount"></param>
         /// <param name="indices"></param>
         /// <param name="indexCount"></param>
-        virtual int AddMesh(int instanceId, float* vertices, float* normals, float* uvs, int vertexCount, int* indices, int indexCount) = 0;
+        virtual int AddSharedMesh(int instanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount) = 0;
 
         /// <summary>
         /// Add transform for an instance to be build on the tlas
@@ -43,6 +61,12 @@ namespace PixelsForGlory
         /// <param name="l2wMatrix"></param>
         virtual int AddTlasInstance(int sharedMeshIndex, float* l2wMatrix) = 0;
             
+        /// <summary>
+        /// Removes instance to be removed on next tlas build
+        /// </summary>
+        /// <param name="meshInstanceIndex"></param>
+        virtual void RemoveTlasInstance(int meshInstanceIndex) = 0;
+
         /// <summary>
         /// Build top level acceleration structure
         /// </summary>

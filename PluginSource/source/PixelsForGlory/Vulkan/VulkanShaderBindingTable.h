@@ -1,7 +1,6 @@
 #pragma once
-#pragma once
-#include "../vulkan.h"
-#include "VulkanBuffer.h"
+#include "../../vulkan.h"
+#include "Buffer.h"
 #include <vector>
 
 
@@ -71,7 +70,7 @@ namespace PixelsForGlory
         /// <returns></returns>
         bool        CreateSBT(VkDevice device, VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties, VkPipeline rtPipeline);
 
-        VulkanBuffer    GetBuffer() const;
+        Vulkan::Buffer    GetBuffer() const;
 
     private:
         uint32_t                                            shaderHandleSize_;
@@ -82,7 +81,7 @@ namespace PixelsForGlory
         std::vector<uint32_t>                               numMissShaders_;
         std::vector<VkPipelineShaderStageCreateInfo>        stages_;
         std::vector<VkRayTracingShaderGroupCreateInfoKHR>   groups_;
-        VulkanBuffer                                        sbtBuffer_;
+        Vulkan::Buffer                                        sbtBuffer_;
     };
 }
 

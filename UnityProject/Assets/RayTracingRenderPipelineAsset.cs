@@ -6,6 +6,7 @@ public class RayTracingRenderPipelineAsset : RenderPipelineAsset
 {
     protected override RenderPipeline CreatePipeline()
     {
+        PixelsForGlory.RayTracingPlugin.Prepare();
         return new RayTracingRenderPipeline();
     }
 }

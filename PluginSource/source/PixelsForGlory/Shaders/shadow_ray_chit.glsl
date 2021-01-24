@@ -3,7 +3,7 @@
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_nonuniform_qualifier : require
 
-#include "../ShaderConstants.h"
+#include "../Vulkan/ShaderConstants.h"
 
 // layout(set = SWS_MATIDS_SET, binding = 0, std430) readonly buffer MatIDsBuffer {
 //     uint MatIDs[];

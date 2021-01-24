@@ -2,12 +2,15 @@
 
 using UnityEngine;
 
-
+[ExecuteInEditMode]
 [RequireComponent(typeof(MeshFilter))]
 class RayTraceableObject : MonoBehaviour
 {
-    public int SharedMeshIndex;
-    public int MeshInstanceIndex;
+    [ReadOnly] public int SharedMeshInstanceId;
+    [ReadOnly] public int SharedMeshIndex;
+    [ReadOnly] public int MeshInstanceIndex;
+    private bool _meshInstanceSent = false;
+
 
     private MeshFilter _meshFilterRef = null;
     private MeshFilter _meshFilter
@@ -25,6 +28,7 @@ class RayTraceableObject : MonoBehaviour
 
     private void OnEnable()
     {
+        SharedMeshInstanceId = _meshFilter.sharedMesh.GetInstanceID();
         SendMeshToPlugin();
         SendInstanceToPlugin();
     }
@@ -32,6 +36,7 @@ class RayTraceableObject : MonoBehaviour
     private void OnDisable()
     {
         // Remove instance and possibly shared mesh
+        RemoveInstanceFromPlugin();
     }
     private void SendMeshToPlugin()
     {
@@ -53,7 +58,7 @@ class RayTraceableObject : MonoBehaviour
         var uvsHandle = GCHandle.Alloc(uvs, GCHandleType.Pinned);
         var indicesHandle = GCHandle.Alloc(indices, GCHandleType.Pinned);
 
-        SharedMeshIndex = PixelsForGlory.RayTracingPlugin.AddMesh(
+        SharedMeshIndex = PixelsForGlory.RayTracingPlugin.AddSharedMesh(
                                             _meshFilter.sharedMesh.GetInstanceID(),
                                             verticesHandle.AddrOfPinnedObject(),
                                             normalsHandle.AddrOfPinnedObject(),
@@ -70,12 +75,25 @@ class RayTraceableObject : MonoBehaviour
 
     private void SendInstanceToPlugin()
     {
+        if(_meshInstanceSent)
+        {
+            return;
+        }
+
+        // Send instance information to plugin ONCE
         var l2wMatrix = transform.localToWorldMatrix;
         var l2wMatrixHandle = GCHandle.Alloc(l2wMatrix, GCHandleType.Pinned);
         
         MeshInstanceIndex = PixelsForGlory.RayTracingPlugin.AddTlasInstance(SharedMeshIndex, l2wMatrixHandle.AddrOfPinnedObject());
 
         l2wMatrixHandle.Free();
+
+        _meshInstanceSent = true;
+    }
+
+    private void RemoveInstanceFromPlugin()
+    {
+        PixelsForGlory.RayTracingPlugin.RemoveTlasInstance(MeshInstanceIndex);
     }
 }
 

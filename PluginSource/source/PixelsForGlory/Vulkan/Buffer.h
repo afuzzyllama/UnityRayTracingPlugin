@@ -1,13 +1,15 @@
 #pragma once
-#include "../vulkan.h"
+#include "../../vulkan.h"
 
-namespace PixelsForGlory
+namespace PixelsForGlory::Vulkan
 {
 
-    class VulkanBuffer {
+    class Buffer {
     public:
-        VulkanBuffer();
-        ~VulkanBuffer();
+        static const VkMemoryPropertyFlags kDefaultMemoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+        Buffer();
+        ~Buffer();
 
         /// <summary>
         /// Create buffer
@@ -48,8 +50,10 @@ namespace PixelsForGlory
         // getters
         VkBuffer GetBuffer() const;
         VkDeviceSize GetSize() const;
-
-        static const VkMemoryPropertyFlags kDefaultMemoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        
+        // Helpers to get device address
+        VkDeviceOrHostAddressKHR GetBufferDeviceAddress() const;
+        VkDeviceOrHostAddressConstKHR GetBufferDeviceAddressConst() const;
 
     private:
         VkDevice        device_;

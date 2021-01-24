@@ -7,9 +7,12 @@ using UnityEngine;
 
 namespace PixelsForGlory
 {
+    [ExecuteInEditMode]
     class DebugFromPlugin : MonoBehaviour
     {
-        [DllImport("RayTracingPlugin", CallingConvention = CallingConvention.Cdecl)]
+        const string PLUGIN_NAME = "RayTracingPlugin";
+
+        [DllImport(PLUGIN_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void RegisterDebugCallback(DebugCallback callback);
 
         //Create string param callback delegate
@@ -24,15 +27,15 @@ namespace PixelsForGlory
             switch (level)
             {
                 case 0:
-                    UnityEngine.Debug.Log(debug_string);
+                    UnityEngine.Debug.Log($"{PLUGIN_NAME}: {debug_string}");
                     break;
 
                 case 1:
-                    UnityEngine.Debug.LogWarning(debug_string);
+                    UnityEngine.Debug.LogWarning($"{PLUGIN_NAME}: {debug_string}");
                     break;
 
                 case 2:
-                    UnityEngine.Debug.LogError(debug_string);
+                    UnityEngine.Debug.LogError($"{PLUGIN_NAME}: {debug_string}");
                     break;
 
                 default:

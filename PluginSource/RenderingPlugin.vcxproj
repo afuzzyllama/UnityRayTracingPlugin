@@ -22,11 +22,12 @@
     <ClInclude Include="source\PixelsForGlory\Debug.h" />
     <ClInclude Include="source\PixelsForGlory\RayTracerAPI.h" />
     <ClInclude Include="source\PixelsForGlory\ResourcePool.h" />
-    <ClInclude Include="source\PixelsForGlory\ShaderConstants.h" />
-    <ClInclude Include="source\PixelsForGlory\VulkanBuffer.h" />
-    <ClInclude Include="source\PixelsForGlory\VulkanImage.h" />
-    <ClInclude Include="source\PixelsForGlory\VulkanShader.h" />
-    <ClInclude Include="source\PixelsForGlory\VulkanShaderBindingTable.h" />
+    <ClInclude Include="source\PixelsForGlory\Vulkan\RayTracer.h" />
+    <ClInclude Include="source\PixelsForGlory\Vulkan\ShaderConstants.h" />
+    <ClInclude Include="source\PixelsForGlory\Vulkan\Buffer.h" />
+    <ClInclude Include="source\PixelsForGlory\Vulkan\Image.h" />
+    <ClInclude Include="source\PixelsForGlory\Vulkan\VulkanShader.h" />
+    <ClInclude Include="source\PixelsForGlory\Vulkan\VulkanShaderBindingTable.h" />
     <ClInclude Include="source\PlatformBase.h" />
     <ClInclude Include="source\Unity\IUnityGraphics.h" />
     <ClInclude Include="source\Unity\IUnityGraphicsVulkan.h" />
@@ -36,11 +37,13 @@
   <ItemGroup>
     <ClCompile Include="source\PixelsForGlory\Debug.cpp" />
     <ClCompile Include="source\PixelsForGlory\RayTracerAPI.cpp" />
-    <ClCompile Include="source\PixelsForGlory\RayTracerAPI_Vulkan.cpp" />
-    <ClCompile Include="source\PixelsForGlory\VulkanBuffer.cpp" />
-    <ClCompile Include="source\PixelsForGlory\VulkanImage.cpp" />
-    <ClCompile Include="source\PixelsForGlory\VulkanShader.cpp" />
-    <ClCompile Include="source\PixelsForGlory\VulkanShaderBindingTable.cpp" />
+    <ClCompile Include="source\PixelsForGlory\Vulkan\RayTracer.cpp" />
+    <ClCompile Include="source\PixelsForGlory\Vulkan\RayTracerAPI_Vulkan.cpp" />
+    <ClCompile Include="source\PixelsForGlory\Vulkan\RayTracerAPI_VulkanHooks.cpp" />
+    <ClCompile Include="source\PixelsForGlory\Vulkan\Buffer.cpp" />
+    <ClCompile Include="source\PixelsForGlory\Vulkan\Image.cpp" />
+    <ClCompile Include="source\PixelsForGlory\Vulkan\VulkanShader.cpp" />
+    <ClCompile Include="source\PixelsForGlory\Vulkan\VulkanShaderBindingTable.cpp" />
     <ClCompile Include="source\RayTracingPlugin.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -171,9 +174,9 @@ ENDLOCAL
       <Command>SETLOCAL
 
 if "$(PlatformShortName)" == "x86" (
-  set TARGET_PLUGIN_PATH=$(SolutionDir)...\UnityProject\Assets\Plugins\x86
+  set TARGET_PLUGIN_PATH=$(SolutionDir)...\UnityProject\Assets\Plugins\RayTracing\x86
 ) else (
-  set TARGET_PLUGIN_PATH=$(SolutionDir)..\UnityProject\Assets\Plugins\x86_64
+  set TARGET_PLUGIN_PATH=$(SolutionDir)..\UnityProject\Assets\Plugins\RayTracing\x86_64
 )
 echo Target Plugin Path is %TARGET_PLUGIN_PATH%
 copy /Y "$(TargetPath)" "%TARGET_PLUGIN_PATH%\$(TargetFileName)"
@@ -246,9 +249,9 @@ ENDLOCAL
       <Command>SETLOCAL
 
 if "$(PlatformShortName)" == "x86" (
-  set TARGET_PLUGIN_PATH=$(SolutionDir)...\UnityProject\Assets\Plugins\x86
+  set TARGET_PLUGIN_PATH=$(SolutionDir)...\UnityProject\Assets\Plugins\RayTracing\x86
 ) else (
-  set TARGET_PLUGIN_PATH=$(SolutionDir)..\UnityProject\Assets\Plugins\x86_64
+  set TARGET_PLUGIN_PATH=$(SolutionDir)..\UnityProject\Assets\Plugins\RayTracing\x86_64
 )
 echo Target Plugin Path is %TARGET_PLUGIN_PATH%
 copy /Y "$(TargetPath)" "%TARGET_PLUGIN_PATH%\$(TargetFileName)"

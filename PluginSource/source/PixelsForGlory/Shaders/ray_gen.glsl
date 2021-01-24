@@ -2,7 +2,7 @@
 #extension GL_EXT_ray_tracing : enable
 #extension GL_GOOGLE_include_directive : require
 
-#include "../ShaderConstants.h"
+#include "../Vulkan/ShaderConstants.h"
 
 layout(set = DESCRIPTOR_SET_ACCELERATION_STRUCTURE, binding = DESCRIPTOR_BINDING_ACCELERATION_STRUCTURE)    uniform accelerationStructureEXT Scene;
 layout(set = DESCRIPTOR_SET_OUTPUT_IMAGE,           binding = DESCRIPTOR_BINDING_OUTPUT_IMAGE, rgba8)       uniform image2D ResultImage;
@@ -492,10 +492,19 @@ void main() {
     // rays[0] = originRay;
     // rayCount = 1;
 
+     
      //vec3 finalColor = TraceRay();
 
-     vec3 finalColor = vec3(1.0f, 0.0f, 0.0f);
+    vec4 finalColor;
+    if(gl_LaunchIDEXT.x / 16 % 2 == 0 && gl_LaunchIDEXT.y / 16 % 2 == 0)
+    {
+        finalColor = vec4(1.0f, 0.0f, 1.0f, 1.0f);
+    }
+    else
+    {
+        finalColor = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    }
 
     // // Return result to image      
-    imageStore(ResultImage, ivec2(gl_LaunchIDEXT.xy), vec4(finalColor, 1.0f));
+    imageStore(ResultImage, ivec2(gl_LaunchIDEXT.xy), finalColor);
 }

@@ -1,18 +1,18 @@
 #include "RayTracerAPI.h"
-#include "../PlatformBase.h"
-#include "../Unity/IUnityGraphics.h"
 
-
-PixelsForGlory::RayTracerAPI* PixelsForGlory::CreateRayTracerAPI(UnityGfxRenderer apiType)
+namespace PixelsForGlory
 {
-#if SUPPORT_VULKAN
-    if (apiType == kUnityGfxRendererVulkan)
+    RayTracerAPI* CreateRayTracerAPI(UnityGfxRenderer apiType)
     {
-        extern RayTracerAPI* CreateRayTracerAPI_Vulkan();
-        return CreateRayTracerAPI_Vulkan();
-    }
+#if SUPPORT_VULKAN
+        if (apiType == kUnityGfxRendererVulkan)
+        {
+            extern RayTracerAPI* CreateRayTracerAPI_Vulkan();
+            return CreateRayTracerAPI_Vulkan();
+        }
 #endif // if SUPPORT_VULKAN
 
-    // Unknown or unsupported graphics API
-    return nullptr;
+        // Unknown or unsupported graphics API
+        return nullptr;
+    }
 }

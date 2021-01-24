@@ -1,19 +1,19 @@
 #pragma once
 
+// Don't load prototypes, volk will take care of this
 #ifndef VK_NO_PROTOTYPES
 #define VK_NO_PROTOTYPES
 #endif
-
-#ifndef VK_ENABLE_BETA_EXTENSIONS
-#define VK_ENABLE_BETA_EXTENSIONS
-#endif 
 
 #include <string>
 #include "vulkan/vulkan.h"
 #include "volk.h"
 
-#include "PixelsForGlory/Debug.h"
+#ifndef VK_NO_FLAGS
+#define VK_NO_FLAGS 0
+#endif
 
+#include "PixelsForGlory/Debug.h"
 
 static const std::string vkresult_to_string(VkResult result)
 {
@@ -51,6 +51,10 @@ static const std::string vkresult_to_string(VkResult result)
     }
 }
 
+#ifndef __FILENAME__ 
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#endif
+
 #ifndef VK_CHECK
 #define VK_CHECK(fn, code)                                                                                                                                        \
     do                                                                                                                                                            \
@@ -58,7 +62,7 @@ static const std::string vkresult_to_string(VkResult result)
         VkResult err = code;                                                                                                                                      \
         if (err)                                                                                                                                                  \
         {                                                                                                                                                         \
-            PFG_EDITORLOGERROR(std::string(__FILE__) + " (" + std::to_string(__LINE__) + "): " + std::string(fn) + " returned error: " + vkresult_to_string(err)) \
+            PFG_EDITORLOGERROR(std::string(__FILENAME__) + " (" + std::to_string(__LINE__) + "): " + std::string(fn) + " returned error: " + vkresult_to_string(err)) \
             abort();                                                                                                                                              \
         }                                                                                                                                                         \
     } while (0);

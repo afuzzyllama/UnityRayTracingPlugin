@@ -1,6 +1,6 @@
 #include "VulkanShaderBindingTable.h"
 
-#include "Debug.h"
+#include "../Debug.h"
 
 PixelsForGlory::VulkanShaderBindingTable::VulkanShaderBindingTable()
     : shaderHandleSize_(0u)
@@ -180,7 +180,7 @@ bool PixelsForGlory::VulkanShaderBindingTable::CreateSBT(VkDevice device, VkPhys
             physicalDeviceMemoryProperties, 
             sbtSize, 
             VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
-            VulkanBuffer::kDefaultMemoryPropertyFlags);
+            Vulkan::Buffer::kDefaultMemoryPropertyFlags);
 
     if (VK_SUCCESS != error) {
         return false;
@@ -202,6 +202,6 @@ bool PixelsForGlory::VulkanShaderBindingTable::CreateSBT(VkDevice device, VkPhys
     return (VK_SUCCESS == error);
 }
 
-PixelsForGlory::VulkanBuffer PixelsForGlory::VulkanShaderBindingTable::GetBuffer() const {
+PixelsForGlory::Vulkan::Buffer PixelsForGlory::VulkanShaderBindingTable::GetBuffer() const {
     return sbtBuffer_;
 }
