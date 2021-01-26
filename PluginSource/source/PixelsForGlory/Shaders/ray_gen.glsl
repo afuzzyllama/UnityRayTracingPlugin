@@ -4,14 +4,16 @@
 
 #include "../Vulkan/ShaderConstants.h"
 
-layout(set = DESCRIPTOR_SET_ACCELERATION_STRUCTURE, binding = DESCRIPTOR_BINDING_ACCELERATION_STRUCTURE)    uniform accelerationStructureEXT Scene;
-layout(set = DESCRIPTOR_SET_OUTPUT_IMAGE,           binding = DESCRIPTOR_BINDING_OUTPUT_IMAGE, rgba8)       uniform image2D ResultImage;
+layout(set = DESCRIPTOR_SET_ACCELERATION_STRUCTURE, binding = DESCRIPTOR_BINDING_ACCELERATION_STRUCTURE)        uniform accelerationStructureEXT Scene;
 
-layout(set = DESCRIPTOR_SET_SCENE_DATA,             binding = DESCRIPTOR_BINDING_SCENE_DATA, std140)        uniform SceneData {
+layout(set = DESCRIPTOR_SET_RENDER_TARGETS,         binding = DESCRIPTOR_BINDING_RENDER_TARGETS_GAME, rgba8)    uniform image2D GameRenderTarget;
+layout(set = DESCRIPTOR_SET_RENDER_TARGETS,         binding = DESCRIPTOR_BINDING_RENDER_TARGETS_SCENE, rgba8)   uniform image2D SceneRenderTarget;
+
+layout(set = DESCRIPTOR_SET_SCENE_DATA,             binding = DESCRIPTOR_BINDING_SCENE_DATA, std140)            uniform SceneData {
     ShaderSceneParam SceneParams;
 };
 
-layout(set = DESCRIPTOR_SET_CAMERA_DATA,            binding = DESCRIPTOR_BINDING_CAMERA_DATA, std140)       uniform CameraData {
+layout(set = DESCRIPTOR_SET_CAMERA_DATA,            binding = DESCRIPTOR_BINDING_CAMERA_DATA, std140)           uniform CameraData {
     ShaderCameraParam CameraParams;
 };
 
@@ -505,6 +507,8 @@ void main() {
         finalColor = vec4(0.0f, 0.0f, 0.0f, 1.0f);
     }
 
-    // // Return result to image      
-    imageStore(ResultImage, ivec2(gl_LaunchIDEXT.xy), finalColor);
+     // Return result to image      
+     // TODO: We don't need to write to both!
+    imageStore(GameRenderTarget, ivec2(gl_LaunchIDEXT.xy), finalColor);
+    imageStore(SceneRenderTarget, ivec2(gl_LaunchIDEXT.xy), finalColor);
 }

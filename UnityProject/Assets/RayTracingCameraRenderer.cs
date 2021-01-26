@@ -64,14 +64,6 @@ public class RayTracingCameraRenderer
                 filterMode = FilterMode.Point
             };
 
-            for(int w = 0; w < newWidth; ++w)
-            {
-                for(int h = 0; h < newHeight; ++h)
-                {
-                    _targets[_camera.cameraType].SetPixel(w, h, Color.blue);
-                }
-            }
-
             // Call Apply() so it's actually uploaded to the GPU
             _targets[_camera.cameraType].Apply();
 
@@ -88,7 +80,7 @@ public class RayTracingCameraRenderer
         }
 
         
-        // IF we got here, we are successful
+        // If we got here, we are successful
         return true;
     }
 
@@ -114,7 +106,8 @@ public class RayTracingCameraRenderer
 
     private void RayTrace()
     {
-        //GL.IssuePluginEvent(PixelsForGlory.RayTracingPlugin.GetRenderEventFunc(), 1);
+        // Issue the ray trace and execute the command buffer right away
+        GL.IssuePluginEvent(PixelsForGlory.RayTracingPlugin.GetRenderEventFunc(), (int)_camera.cameraType);
     }
 
     private void Submit()

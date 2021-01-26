@@ -26,8 +26,8 @@
     <ClInclude Include="source\PixelsForGlory\Vulkan\ShaderConstants.h" />
     <ClInclude Include="source\PixelsForGlory\Vulkan\Buffer.h" />
     <ClInclude Include="source\PixelsForGlory\Vulkan\Image.h" />
-    <ClInclude Include="source\PixelsForGlory\Vulkan\VulkanShader.h" />
-    <ClInclude Include="source\PixelsForGlory\Vulkan\VulkanShaderBindingTable.h" />
+    <ClInclude Include="source\PixelsForGlory\Vulkan\Shader.h" />
+    <ClInclude Include="source\PixelsForGlory\Vulkan\ShaderBindingTable.h" />
     <ClInclude Include="source\PlatformBase.h" />
     <ClInclude Include="source\Unity\IUnityGraphics.h" />
     <ClInclude Include="source\Unity\IUnityGraphicsVulkan.h" />
@@ -38,12 +38,11 @@
     <ClCompile Include="source\PixelsForGlory\Debug.cpp" />
     <ClCompile Include="source\PixelsForGlory\RayTracerAPI.cpp" />
     <ClCompile Include="source\PixelsForGlory\Vulkan\RayTracer.cpp" />
-    <ClCompile Include="source\PixelsForGlory\Vulkan\RayTracerAPI_Vulkan.cpp" />
     <ClCompile Include="source\PixelsForGlory\Vulkan\RayTracerAPI_VulkanHooks.cpp" />
     <ClCompile Include="source\PixelsForGlory\Vulkan\Buffer.cpp" />
     <ClCompile Include="source\PixelsForGlory\Vulkan\Image.cpp" />
-    <ClCompile Include="source\PixelsForGlory\Vulkan\VulkanShader.cpp" />
-    <ClCompile Include="source\PixelsForGlory\Vulkan\VulkanShaderBindingTable.cpp" />
+    <ClCompile Include="source\PixelsForGlory\Vulkan\Shader.cpp" />
+    <ClCompile Include="source\PixelsForGlory\Vulkan\ShaderBindingTable.cpp" />
     <ClCompile Include="source\RayTracingPlugin.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

@@ -6,6 +6,30 @@ namespace PixelsForGlory::Vulkan
 {
     class Image {
     public:
+        static void UpdateImageBarrier(
+            VkCommandBuffer commandBuffer,
+            VkImage image,
+            VkImageSubresourceRange& subresourceRange,
+            VkAccessFlags srcAccessMask,
+            VkAccessFlags dstAccessMask,
+            VkImageLayout oldLayout,
+            VkImageLayout newLayout)
+        {
+            VkImageMemoryBarrier imageMemoryBarrier = {};
+            imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            imageMemoryBarrier.srcAccessMask = srcAccessMask;
+            imageMemoryBarrier.dstAccessMask = dstAccessMask;
+            imageMemoryBarrier.oldLayout = oldLayout;
+            imageMemoryBarrier.newLayout = newLayout;
+            imageMemoryBarrier.image = image;
+            imageMemoryBarrier.subresourceRange = subresourceRange;
+
+            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
+        }
+
+
         Image();
         Image(VkDevice device, VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties);
         ~Image();

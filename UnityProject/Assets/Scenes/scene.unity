@@ -416,8 +416,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b781e4493fe298c49a80b614995463d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  SharedMeshInstanceId: 474
   SharedMeshIndex: 0
-  MeshInstanceIndex: 0
+  MeshInstanceIndex: 1
 --- !u!1 &221267407
 GameObject:
   m_ObjectHideFlags: 0
@@ -559,94 +560,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b781e4493fe298c49a80b614995463d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  SharedMeshInstanceId: 474
   SharedMeshIndex: 0
-  MeshInstanceIndex: 0
---- !u!1 &652111868
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 652111870}
-  - component: {fileID: 652111869}
-  m_Layer: 0
-  m_Name: DebugFromPlugin
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &652111869
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 652111868}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: df104faeb96934e409b2a04eadf897f3, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
---- !u!4 &652111870
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 652111868}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_RootOrder: 5
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &804620846
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 804620847}
-  - component: {fileID: 804620848}
-  m_Layer: 0
-  m_Name: RayTracer
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &804620847
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 804620846}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_RootOrder: 4
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &804620848
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 804620846}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e31d4a75aae67154b9ea2db75918c2c5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  MeshInstanceIndex: 3
 --- !u!1 &870616245
 GameObject:
   m_ObjectHideFlags: 0
@@ -756,7 +672,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b781e4493fe298c49a80b614995463d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  SharedMeshIndex: 0
+  SharedMeshInstanceId: 482
+  SharedMeshIndex: 1
   MeshInstanceIndex: 0
 --- !u!850595691 &967251177
 LightingSettings:
@@ -927,5 +844,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b781e4493fe298c49a80b614995463d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  SharedMeshIndex: 0
-  MeshInstanceIndex: 0
+  SharedMeshInstanceId: 478
+  SharedMeshIndex: 2
+  MeshInstanceIndex: 2

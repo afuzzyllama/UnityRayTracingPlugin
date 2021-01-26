@@ -78,6 +78,88 @@ namespace PixelsForGlory::Vulkan
         vkGetPhysicalDeviceMemoryProperties(physicalDevice, &PixelsForGlory::Vulkan::RayTracer::Instance().physicalDeviceMemoryProperties_);
     }
 
+    VkResult CreateInstance_RayTracer(const VkInstanceCreateInfo* unityCreateInfo, const VkAllocationCallbacks* unityAllocator, VkInstance* instance)
+    {
+        // Copy ApplicationInfo from Unity and force it up to Vulkan 1.2
+        VkApplicationInfo applicationInfo;
+        applicationInfo.sType = unityCreateInfo->pApplicationInfo->sType;
+        applicationInfo.apiVersion = VK_API_VERSION_1_2;
+        applicationInfo.applicationVersion = unityCreateInfo->pApplicationInfo->applicationVersion;
+        applicationInfo.engineVersion = unityCreateInfo->pApplicationInfo->engineVersion;
+        applicationInfo.pApplicationName = unityCreateInfo->pApplicationInfo->pApplicationName;
+        applicationInfo.pEngineName = unityCreateInfo->pApplicationInfo->pEngineName;
+        applicationInfo.pNext = unityCreateInfo->pApplicationInfo->pNext;
+
+        // Define Vulkan create information for instance
+        VkInstanceCreateInfo createInfo;
+        createInfo.pNext = nullptr;
+        createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+        createInfo.flags = 0;
+        createInfo.pApplicationInfo = &applicationInfo;
+
+        // At time of writing this was 0, make sure Unity didn't change anything
+        assert(unityCreateInfo->enabledLayerCount == 0);
+
+        // Depending if we have validations layers defined, populate debug messenger create info
+        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
+        const char* layerName = "VK_LAYER_KHRONOS_validation";
+
+        // TODO: debug flag
+        if (/*_debug*/ false) {
+            createInfo.enabledLayerCount = 1;
+            createInfo.ppEnabledLayerNames = &layerName;
+
+            debugCreateInfo = {};
+            debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+            debugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+            debugCreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+            debugCreateInfo.pfnUserCallback = debugCallback;
+
+            createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
+        }
+        else {
+            createInfo.enabledLayerCount = 0;
+            createInfo.pNext = nullptr;
+        }
+
+        // Gather extensions required for instaqnce
+        std::vector<const char*> requiredExtensions = {
+            VK_KHR_DISPLAY_EXTENSION_NAME,
+            VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
+            VK_KHR_SURFACE_EXTENSION_NAME,
+    #ifdef WIN32
+            VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+    #endif
+            VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
+            VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME,
+
+            /*VK_EXT_DEBUG_UTILS_EXTENSION_NAME*/ // Enable when debugging of Vulkan is needed
+        };
+
+        createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
+        createInfo.ppEnabledExtensionNames = requiredExtensions.data();
+
+        vkCreateInstance = (PFN_vkCreateInstance)vkGetInstanceProcAddr(VK_NULL_HANDLE, "vkCreateInstance");
+        VkResult result = vkCreateInstance(&createInfo, unityAllocator, instance);
+        VK_CHECK("vkCreateInstance", result)
+
+        if (result == VK_SUCCESS)
+        {
+            volkLoadInstance(*instance);
+        }
+
+        // Unity automatically picks up on VkDebugUtilsMessengerCreateInfoEXT
+        // If for some reason it doesn't, we'd hook up a debug callback here
+        //if (/*_debug*/ true) {
+        //    if (CreateDebugUtilsMessengerEXT(*instance, &debugCreateInfo, nullptr, &PixelsForGlory::Vulkan::RayTracer::Instance().debugMessenger_) != VK_SUCCESS) 
+        //    {
+        //        PFG_EDITORLOGERROR("failed to set up debug messenger!")
+        //    }
+        //}
+
+        return result;
+    }
+
     VkResult CreateDevice_RayTracer(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo* unityCreateInfo, const VkAllocationCallbacks* unityAllocator, VkDevice* device)
     {
         ResolvePropertiesAndQueues_RayTracer(physicalDevice);
@@ -102,10 +184,14 @@ namespace PixelsForGlory::Vulkan
         }
 
         // Setup required features backwards for chaining
+        VkPhysicalDeviceDescriptorIndexingFeatures physicalDeviceDescriptorIndexingFeatures = { };
+        physicalDeviceDescriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+        physicalDeviceDescriptorIndexingFeatures.pNext = nullptr;
+
         VkPhysicalDeviceRayTracingPipelineFeaturesKHR physicalDeviceRayTracingPipelineFeatures = { };
         physicalDeviceRayTracingPipelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
         physicalDeviceRayTracingPipelineFeatures.rayTracingPipeline = VK_TRUE;
-        physicalDeviceRayTracingPipelineFeatures.pNext = nullptr;
+        physicalDeviceRayTracingPipelineFeatures.pNext = &physicalDeviceDescriptorIndexingFeatures;
 
         VkPhysicalDeviceBufferDeviceAddressFeatures physicalDeviceBufferDeviceAddressFeatures = { };
         physicalDeviceBufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
@@ -144,11 +230,15 @@ namespace PixelsForGlory::Vulkan
             // Required by Raytracing
             VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
             VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+            VK_KHR_SPIRV_1_4_EXTENSION_NAME,
+
+            // Required by SPRIV 1.4
+            VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME,
 
             // Required by acceleration structure
             VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
             VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
-            VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
+            VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME
         };
 
         for (auto const& ext : requiredExtensions) {
@@ -202,9 +292,16 @@ namespace PixelsForGlory::Vulkan
         , physicalDeviceMemoryProperties_(VkPhysicalDeviceMemoryProperties())
         , rayTracingProperties_(VkPhysicalDeviceRayTracingPipelinePropertiesKHR())
         , device_(NullDevice)
+        , alreadyPrepared_(false)
         , rebuildTlas_(true)
         , updateTlas_(false)
         , tlas_(RayTracerAccelerationStructure())
+        , descriptorPool_(VK_NULL_HANDLE)
+        , updateDescriptorSetsData_(true)
+        , cameraBufferInfo_(VkDescriptorBufferInfo())
+        , sceneBufferInfo_(VkDescriptorBufferInfo())
+        , pipelineLayout_(VK_NULL_HANDLE)
+        , pipeline_(VK_NULL_HANDLE)
     {}
 
     void RayTracer::InitializeFromUnityInstance(IUnityGraphicsVulkan* graphicsInterface)
@@ -253,6 +350,16 @@ namespace PixelsForGlory::Vulkan
             }
         }
 
+        for (auto i = sharedMeshAttributesPool_.pool_begin(); i != sharedMeshAttributesPool_.pool_end(); ++i)
+        {
+            (*i).Destroy();
+        }
+
+        for (auto i = sharedMeshFacesPool_.pool_begin(); i != sharedMeshFacesPool_.pool_end(); ++i)
+        {
+            (*i).Destroy();
+        }
+
         instancesAccelerationStructuresBuffer_.Destroy();
 
         if (tlas_.accelerationStructure != VK_NULL_HANDLE)
@@ -260,6 +367,37 @@ namespace PixelsForGlory::Vulkan
             vkDestroyAccelerationStructureKHR(device_, tlas_.accelerationStructure, nullptr);
         }
         tlas_.buffer.Destroy();
+
+        if (descriptorSets_.size() > 0)
+        {
+            vkFreeDescriptorSets(device_, descriptorPool_, DESCRIPTOR_SET_SIZE, descriptorSets_.data());
+        }
+        descriptorSets_.clear();
+
+        if (descriptorPool_ != VK_NULL_HANDLE) {
+            vkDestroyDescriptorPool(device_, descriptorPool_, nullptr);
+            descriptorPool_ = VK_NULL_HANDLE;
+        }
+
+        shaderBindingTable_.Destroy();
+
+        if (pipeline_ != VK_NULL_HANDLE) 
+        {
+            vkDestroyPipeline(device_, pipeline_, nullptr);
+            pipeline_ = VK_NULL_HANDLE;
+        }
+
+        if (pipelineLayout_ != VK_NULL_HANDLE) {
+            vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
+            pipelineLayout_ = VK_NULL_HANDLE;
+        }
+
+        for (auto descriptorSetLayout : descriptorSetLayouts_)
+        {
+            vkDestroyDescriptorSetLayout(device_, descriptorSetLayout, nullptr);
+        }
+        descriptorSetLayouts_.clear();
+
 
     }
 
@@ -324,7 +462,20 @@ namespace PixelsForGlory::Vulkan
         return true;
     }
 
-    int RayTracer::SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, void* textureHandle)
+    void RayTracer::SetShaderFolder(std::string shaderFolder)
+    {
+        shaderFolder_ = shaderFolder;
+        
+
+        if (shaderFolder_.back() != '/' || shaderFolder_.back() != '\\')
+        {
+            shaderFolder_ = shaderFolder_ + "/";
+        }
+
+        PFG_EDITORLOG("Shader folder set to: " + shaderFolder_)
+    }
+
+    int RayTracer::SetRenderTarget(int cameraType, int unityTextureFormat, int width, int height, void* textureHandle)
     {
         VkFormat vkFormat;
         switch (unityTextureFormat)
@@ -334,23 +485,23 @@ namespace PixelsForGlory::Vulkan
             vkFormat = VK_FORMAT_R8G8B8A8_UNORM;
             break;
         default:
-            Debug::LogError("Attempted to set an unsupported Unity texture format" + std::to_string(unityTextureFormat));
+            PFG_EDITORLOGERROR("Attempted to set an unsupported Unity texture format" + std::to_string(unityTextureFormat))
             return 0;
         }
 
         // If the target already exists, make sure to destroy it first
         bool insert = false;
-        if (renderTargets_.find(cameraInstanceId) != renderTargets_.end())
+        if (renderTargets_.find(cameraType) != renderTargets_.end())
         {
-            renderTargets_[cameraInstanceId]->image.Destroy();
+            renderTargets_[cameraType]->image.Destroy();
         }
         else
         {
-            renderTargets_.insert(std::make_pair(cameraInstanceId, std::make_unique<RayTracerRenderTarget>()));
+            renderTargets_.insert(std::make_pair(cameraType, std::make_unique<RayTracerRenderTarget>()));
             insert = true;
         }
 
-        auto& target = renderTargets_[cameraInstanceId];
+        auto& target = renderTargets_[cameraType];
         target->format = vkFormat;
         target->extent.width = width;
         target->extent.height = height;
@@ -367,26 +518,40 @@ namespace PixelsForGlory::Vulkan
             VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != VK_SUCCESS) {
 
-            Debug::LogError("Failed to create render image!");
-            renderTargets_[cameraInstanceId]->image.Destroy();
-            renderTargets_[cameraInstanceId] = nullptr;
+            PFG_EDITORLOGERROR("Failed to create render image!")
+            renderTargets_[cameraType]->image.Destroy();
+            renderTargets_[cameraType] = nullptr;
             return 0;
         }
 
         VkImageSubresourceRange range = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
         if (target->image.CreateImageView(VK_IMAGE_VIEW_TYPE_2D, target->format, range) != VK_SUCCESS) {
-            Debug::LogError("Failed to create render image view!");
-            renderTargets_[cameraInstanceId]->image.Destroy();
-            renderTargets_[cameraInstanceId] = nullptr;
+            PFG_EDITORLOGERROR("Failed to create render image view!")
+            renderTargets_[cameraType]->image.Destroy();
+            renderTargets_[cameraType] = nullptr;
             return 0;
         }
+
+        // Make into a storage image
+        VkCommandBuffer commandBuffer;
+        CreateWorkerCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, graphicsCommandPool_, commandBuffer);
+        Vulkan::Image::UpdateImageBarrier(
+            commandBuffer, 
+            target->image.GetImage(), 
+            range, 
+            0, VK_ACCESS_SHADER_WRITE_BIT, 
+            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        SubmitWorkerCommandBuffer(commandBuffer, graphicsCommandPool_, graphicsQueue_);
 
         // Only display on creation
         if(insert)
         { 
-            Debug::Log("Successfully set render target for camera: " + std::to_string(cameraInstanceId));
+            PFG_EDITORLOG("Successfully set render target for camera: " + std::to_string(cameraType))
         }
         
+        // Make sure descriptor sets are updated if a new render target has been created
+        updateDescriptorSetsData_ = true;
+
         return 1;
     }
         
@@ -442,7 +607,7 @@ namespace PixelsForGlory::Vulkan
                 Vulkan::Buffer::kDefaultMemoryPropertyFlags) 
             != VK_SUCCESS)
         {
-            Debug::LogError("Failed to create vertex buffer for shared mesh instance id " + std::to_string(instanceId));
+            PFG_EDITORLOGERROR("Failed to create vertex buffer for shared mesh instance id " + std::to_string(instanceId))
             success = false;
         }
     
@@ -453,7 +618,7 @@ namespace PixelsForGlory::Vulkan
             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
             Vulkan::Buffer::kDefaultMemoryPropertyFlags))
         {
-            Debug::LogError("Failed to create index buffer for shared mesh instance id " + std::to_string(instanceId));
+            PFG_EDITORLOGERROR("Failed to create index buffer for shared mesh instance id " + std::to_string(instanceId))
             success = false;
         }
     
@@ -461,11 +626,11 @@ namespace PixelsForGlory::Vulkan
             device_,
                 physicalDeviceMemoryProperties_,
                 sizeof(ShaderVertexAttribute) * vertexCount,
-                VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                 Vulkan::Buffer::kDefaultMemoryPropertyFlags)
             != VK_SUCCESS)
         {
-            Debug::LogError("Failed to create vertex attribute buffer for shared mesh instance id " + std::to_string(instanceId));
+            PFG_EDITORLOGERROR("Failed to create vertex attribute buffer for shared mesh instance id " + std::to_string(instanceId))
             success = false;
         }
     
@@ -474,11 +639,11 @@ namespace PixelsForGlory::Vulkan
             device_,
             physicalDeviceMemoryProperties_,
             sizeof(ShaderFace) * vertexCount / 3,
-            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
             Vulkan::Buffer::kDefaultMemoryPropertyFlags)
             != VK_SUCCESS)
         {
-            Debug::LogError("Failed to create face buffer for shared mesh instance id " + std::to_string(instanceId));
+            PFG_EDITORLOGERROR("Failed to create face buffer for shared mesh instance id " + std::to_string(instanceId))
             success = false;
         }
     
@@ -539,22 +704,37 @@ namespace PixelsForGlory::Vulkan
         // Build blas here so we don't have to do it later
         BuildBlas(sharedMeshIndex);
     
-        Debug::Log("Added mesh (sharedMeshInstanceId: " + std::to_string(instanceId) + ")");
+        PFG_EDITORLOG("Added mesh (sharedMeshInstanceId: " + std::to_string(instanceId) + ")")
     
         return sharedMeshIndex;
     
     }
 
-    int RayTracer::AddTlasInstance(int sharedMeshIndex, float* l2wMatrix) 
+    int RayTracer::GetTlasInstanceIndex(int gameObjectInstanceId)
+    {
+        for (auto itr = meshInstancePool_.in_use_begin(); itr != meshInstancePool_.in_use_end(); ++itr)
+        {
+            auto index = *itr;
+            if (meshInstancePool_[index]->gameObjectInstanceId == gameObjectInstanceId)
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    int RayTracer::AddTlasInstance(int gameObjectInstanceId, int sharedMeshIndex, float* l2wMatrix) 
     { 
         auto instance = std::make_unique<RayTracerMeshInstanceData>();
 
+        instance->gameObjectInstanceId = gameObjectInstanceId;
         instance->sharedMeshIndex = sharedMeshIndex;
         FloatArrayToMatrix(l2wMatrix, instance->localToWorld);
 
         int index = meshInstancePool_.add(std::move(instance));
 
-        Debug::Log("Added mesh instance (sharedMeshIndex: " + std::to_string(sharedMeshIndex) + ")");
+        PFG_EDITORLOG("Added mesh instance (sharedMeshIndex: " + std::to_string(sharedMeshIndex) + ")")
 
         // If we added an instance, we need to rebuild the tlas
         rebuildTlas_ = true;
@@ -584,6 +764,11 @@ namespace PixelsForGlory::Vulkan
             update = false;
         }
 
+        if (meshInstancePool_.in_use_size() == 0)
+        {
+            // We have no instances, so there is nothing to build 
+            return;
+        }
         
         if (!update)
         {
@@ -744,7 +929,7 @@ namespace PixelsForGlory::Vulkan
             1,
             &accelerationBuildGeometryInfo,
             accelerationStructureBuildRangeInfos.data());
-        SubmitWorkerCommandBuffer(commandBuffer, graphicsQueue_);
+        SubmitWorkerCommandBuffer(commandBuffer, graphicsCommandPool_, graphicsQueue_);
 
         scratchBuffer.Destroy();
 
@@ -754,22 +939,206 @@ namespace PixelsForGlory::Vulkan
         accelerationStructureDeviceAddressInfo.accelerationStructure = tlas_.accelerationStructure;
         tlas_.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device_, &accelerationStructureDeviceAddressInfo);
 
-        Debug::Log("Succesfully built tlas");
+        PFG_EDITORLOG("Succesfully built tlas")
         
         // We did any pending work, reset flags
         rebuildTlas_= false;
         updateTlas_ = false;
     }
 
-    void RayTracer::Prepare(int width, int height) {}
+    void RayTracer::Prepare() 
+    {
+        if (alreadyPrepared_)
+        {
+            return;
+        }
+        // Create dummy render targets before they come from the engine to prevent crashes
+        SetRenderTarget(1, 4, 800, 600, nullptr);
+        SetRenderTarget(2, 4, 800, 600, nullptr);
 
-    void RayTracer::UpdateCamera(float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov) {}
+        CreateDescriptorSetsLayouts();
+        CreateDescriptorPool();
 
-    void RayTracer::UpdateSceneData(float* color) {}
+        alreadyPrepared_ = true;
+    }
 
-    void RayTracer::TraceRays() {}
+    void RayTracer::UpdateCamera(float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov) 
+    {
+        if (cameraData_.GetBuffer() == VK_NULL_HANDLE)
+        {
+            cameraData_.Create(
+                device_,
+                physicalDeviceMemoryProperties_,
+                sizeof(ShaderCameraParam),
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                Vulkan::Buffer::kDefaultMemoryPropertyFlags);
+        }
 
-    void RayTracer::CopyImageToTexture(void* TextureHandle) {}
+        auto camera = reinterpret_cast<ShaderCameraParam*>(cameraData_.Map());
+        camera->camPos.x = camPos[0];
+        camera->camPos.y = camPos[1];
+        camera->camPos.z = camPos[2];
+
+        camera->camDir.x = camDir[0];
+        camera->camDir.y = camDir[1];
+        camera->camDir.z = camDir[2];
+
+        camera->camUp.x = camUp[0];
+        camera->camUp.y = camUp[1];
+        camera->camUp.z = camUp[2];
+
+        camera->camSide.x = camSide[0];
+        camera->camSide.y = camSide[1];
+        camera->camSide.z = camSide[2];
+
+        camera->camNearFarFov.x = camNearFarFov[0];
+        camera->camNearFarFov.y = camNearFarFov[1];
+        camera->camNearFarFov.z = camNearFarFov[2];
+
+        cameraData_.Unmap();
+    }
+
+    void RayTracer::UpdateSceneData(float* color) 
+    {
+        if (sceneData_.GetBuffer() == VK_NULL_HANDLE)
+        {
+            sceneData_.Create(
+                device_,
+                physicalDeviceMemoryProperties_,
+                sizeof(ShaderSceneParam),
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                Vulkan::Buffer::kDefaultMemoryPropertyFlags);
+        }
+    
+        auto scene = reinterpret_cast<ShaderSceneParam*>(sceneData_.Map());
+        scene->ambient.r = color[0];
+        scene->ambient.g = color[1];
+        scene->ambient.b = color[2];
+        scene->ambient.a = color[3];
+
+        sceneData_.Unmap();
+    }
+
+    void RayTracer::TraceRays(int cameraType)
+    {
+        if (tlas_.accelerationStructure == VK_NULL_HANDLE)
+        {
+            // We don't have a tlas, so we cannot trace rays!
+        }
+
+        if (pipelineLayout_ == VK_NULL_HANDLE)
+        {
+            CreatePipelineLayout();
+            if (pipelineLayout_ == VK_NULL_HANDLE)
+            {
+                // Something went wrong, don't continue
+                return;
+            }
+        }
+
+        if (pipeline_ == VK_NULL_HANDLE)
+        {
+            CreatePipeline();
+            if (pipeline_ == VK_NULL_HANDLE)
+            {
+                return;
+            }
+        }
+        
+        if (pipeline_ != VK_NULL_HANDLE && pipelineLayout_!= VK_NULL_HANDLE)
+        {
+            BuildDescriptorBufferInfos();
+            UpdateDescriptorSets();
+            BuildAndSubmitRayTracingCommandBuffer(cameraType);
+        }
+    }
+
+    void RayTracer::CopyRenderToTarget(int cameraType) 
+    {
+        // cannot manage resources inside renderpass
+        graphicsInterface_->EnsureOutsideRenderPass();
+            
+        auto& target = renderTargets_[cameraType];
+
+        if (target->destination == nullptr)
+        {
+            // No where to copy, bail out!
+            return;
+        }
+
+        UnityVulkanImage image;
+        if (!graphicsInterface_->AccessTexture(target->destination,
+                                                UnityVulkanWholeImage,
+                                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                                VK_ACCESS_TRANSFER_WRITE_BIT,
+                                                kUnityVulkanResourceAccess_PipelineBarrier,
+                                                &image))
+        {
+            return;
+        }
+            
+        UnityVulkanRecordingState recordingState;
+        if (!graphicsInterface_->CommandRecordingState(&recordingState, kUnityVulkanGraphicsQueueAccess_DontCare))
+        {
+            return;
+        }
+            
+        VkImageSubresourceRange range = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+        VkImageCopy region;
+        region.extent.width = target->extent.width;
+        region.extent.height = target->extent.height;
+        region.extent.depth = 1;
+        region.srcOffset.x = 0;
+        region.srcOffset.y = 0;
+        region.srcOffset.z = 0;
+        region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.srcSubresource.baseArrayLayer = 0;
+        region.srcSubresource.layerCount = 1;
+        region.srcSubresource.mipLevel = 0;
+        region.dstOffset.x = 0;
+        region.dstOffset.y = 0;
+        region.dstOffset.z = 0;
+        region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.dstSubresource.baseArrayLayer = 0;
+        region.dstSubresource.layerCount = 1;
+        region.dstSubresource.mipLevel = 0;
+        
+        // Assign target image to be transfer optimal
+        Vulkan::Image::UpdateImageBarrier(
+            recordingState.commandBuffer, 
+            target->image.GetImage(), 
+            range, 
+            VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, 
+            VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    
+        // BUG? Unity destination is not set to the correct layout, do it here
+        Vulkan::Image::UpdateImageBarrier(
+            recordingState.commandBuffer,
+            image.image,
+            range,
+            VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        vkCmdCopyImage(recordingState.commandBuffer, target->image.GetImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+        // Revert target image 
+        Vulkan::Image::UpdateImageBarrier(
+            recordingState.commandBuffer, 
+            target->image.GetImage(), 
+            range, 
+            VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+
+        // BUG? Unity destination is not set to the correct layout, revert
+        Vulkan::Image::UpdateImageBarrier(
+            recordingState.commandBuffer,
+            image.image,
+            range,
+            VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
 
 #pragma endregion RayTracerAPI
 
@@ -783,7 +1152,7 @@ namespace PixelsForGlory::Vulkan
         VK_CHECK("vkCreateCommandPool", vkCreateCommandPool(device_, &commandPoolCreateInfo, nullptr, &outCommandPool))
     }
 
-    void RayTracer::CreateWorkerCommandBuffer(VkCommandBufferLevel level, const VkCommandPool& commandPool, VkCommandBuffer& outCommandBuffer)
+    void RayTracer::CreateWorkerCommandBuffer(VkCommandBufferLevel level, VkCommandPool commandPool, VkCommandBuffer& outCommandBuffer)
     {
         VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
         commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -799,8 +1168,10 @@ namespace PixelsForGlory::Vulkan
         VK_CHECK("vkBeginCommandBuffer", vkBeginCommandBuffer(outCommandBuffer, &commandBufferBeginInfo))
     }
 
-    void RayTracer::SubmitWorkerCommandBuffer(VkCommandBuffer commandBuffer, const VkQueue& queue)
+    void RayTracer::SubmitWorkerCommandBuffer(VkCommandBuffer commandBuffer, VkCommandPool commandPool, const VkQueue& queue)
     {
+        VK_CHECK("vkEndCommandBuffer", vkEndCommandBuffer(commandBuffer))
+
         VkSubmitInfo submitInfo = {};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submitInfo.commandBufferCount = 1;
@@ -829,6 +1200,11 @@ namespace PixelsForGlory::Vulkan
         VK_CHECK("vkWaitForFences", vkWaitForFences(device_, 1, &fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT))
     
         vkDestroyFence(device_, fence, nullptr);
+
+        if (commandPool != VK_NULL_HANDLE)
+        {
+            vkFreeCommandBuffers(device_, commandPool, 1, &commandBuffer);
+        }
     }
 
     void RayTracer::BuildBlas(int sharedMeshPoolIndex)
@@ -935,8 +1311,6 @@ namespace PixelsForGlory::Vulkan
         // Build the acceleration structure on the device via a one-time command buffer submission.  We will NOT use the Unity command buffer in this case
         // Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
 
-
-        
         VkCommandBuffer buildCommandBuffer;
         CreateWorkerCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, graphicsCommandPool_, buildCommandBuffer);
         vkCmdBuildAccelerationStructuresKHR(
@@ -944,7 +1318,7 @@ namespace PixelsForGlory::Vulkan
             1,
             &accelerationBuildGeometryInfo,
             accelerationStructureBuildRangeInfos.data());
-        SubmitWorkerCommandBuffer(buildCommandBuffer, graphicsQueue_);
+        SubmitWorkerCommandBuffer(buildCommandBuffer, graphicsCommandPool_, graphicsQueue_);
 
         scratchBuffer.Destroy();
 
@@ -954,6 +1328,508 @@ namespace PixelsForGlory::Vulkan
         accelerationStructureDeviceAddressInfo.accelerationStructure = sharedMeshesPool_[sharedMeshPoolIndex]->blas.accelerationStructure;
         sharedMeshesPool_[sharedMeshPoolIndex]->blas.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device_, &accelerationStructureDeviceAddressInfo);
 
-        Debug::Log("Built blas for mesh (sharedMeshInstanceId: " + std::to_string(sharedMeshesPool_[sharedMeshPoolIndex]->sharedMeshInstanceId) + ")");
+        PFG_EDITORLOG("Built blas for mesh (sharedMeshInstanceId: " + std::to_string(sharedMeshesPool_[sharedMeshPoolIndex]->sharedMeshInstanceId) + ")")
     }
+
+    void RayTracer::CreateDescriptorSetsLayouts()
+    {
+        // Create descriptor sets for the shader.  This setups up how data is bound to GPU memory and what shader stages will have access to what memory
+    
+        descriptorSetLayouts_.resize(DESCRIPTOR_SET_SIZE);
+
+        // set 0:
+        //  binding 0  ->  Acceleration structure
+        //  binding 1  ->  Scene data
+        //  binding 2  ->  Camera data
+        {
+            VkDescriptorSetLayoutBinding accelerationStructureLayoutBinding;
+            accelerationStructureLayoutBinding.binding = DESCRIPTOR_BINDING_ACCELERATION_STRUCTURE;
+            accelerationStructureLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+            accelerationStructureLayoutBinding.descriptorCount = 1;
+            accelerationStructureLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+
+            VkDescriptorSetLayoutBinding sceneDataLayoutBinding;
+            sceneDataLayoutBinding.binding = DESCRIPTOR_BINDING_SCENE_DATA;
+            sceneDataLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            sceneDataLayoutBinding.descriptorCount = 1;
+            sceneDataLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+
+            VkDescriptorSetLayoutBinding cameraDataLayoutBinding;
+            cameraDataLayoutBinding.binding = DESCRIPTOR_BINDING_CAMERA_DATA;
+            cameraDataLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            cameraDataLayoutBinding.descriptorCount = 1;
+            cameraDataLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+
+            std::vector<VkDescriptorSetLayoutBinding> bindings({
+                    accelerationStructureLayoutBinding,
+                    sceneDataLayoutBinding,
+                    cameraDataLayoutBinding
+                });
+
+            VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+            descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+            descriptorSetLayoutCreateInfo.pBindings = bindings.data();
+
+            VK_CHECK("vkCreateDescriptorSetLayout", 
+                vkCreateDescriptorSetLayout(device_, 
+                                            &descriptorSetLayoutCreateInfo, 
+                                            nullptr, 
+                                            // Overkill, but represents the sets its creating                        
+                                            &descriptorSetLayouts_[DESCRIPTOR_SET_ACCELERATION_STRUCTURE & DESCRIPTOR_SET_SCENE_DATA & DESCRIPTOR_SET_CAMERA_DATA])) 
+        }
+
+        // Set 1
+        // binding 0 -> game render target 
+        // binding 1 -> scene render target 
+        {
+            VkDescriptorSetLayoutBinding gameImageLayoutBinding;
+            gameImageLayoutBinding.binding = DESCRIPTOR_BINDING_RENDER_TARGETS_GAME;
+            gameImageLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            gameImageLayoutBinding.descriptorCount = 1;
+            gameImageLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+
+            VkDescriptorSetLayoutBinding sceneImageLayoutBinding;
+            sceneImageLayoutBinding.binding = DESCRIPTOR_BINDING_RENDER_TARGETS_SCENE;
+            sceneImageLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            sceneImageLayoutBinding.descriptorCount = 1;
+            sceneImageLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+
+            std::vector<VkDescriptorSetLayoutBinding> bindings({
+                gameImageLayoutBinding,
+                sceneImageLayoutBinding,
+            });
+
+            VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+            descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+            descriptorSetLayoutCreateInfo.pBindings = bindings.data();
+
+            VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_RENDER_TARGETS]))
+        }
+
+        // set 2
+        // binding 0 -> attributes
+        {
+            const VkDescriptorBindingFlags setFlag = VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
+
+            VkDescriptorSetLayoutBindingFlagsCreateInfo setBindingFlags;
+            setBindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+            setBindingFlags.pNext = nullptr;
+            setBindingFlags.pBindingFlags = &setFlag;
+            setBindingFlags.bindingCount = 1;
+
+            VkDescriptorSetLayoutBinding verticesLayoutBinding;
+            verticesLayoutBinding.binding = DESCRIPTOR_BINDING_VERTEX_ATTRIBUTES;
+            verticesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            verticesLayoutBinding.descriptorCount = static_cast<uint32_t>(sharedMeshAttributesPool_.pool_size());
+            verticesLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+
+            VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+            descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            descriptorSetLayoutCreateInfo.bindingCount = 1;
+            descriptorSetLayoutCreateInfo.pBindings = &verticesLayoutBinding;
+            descriptorSetLayoutCreateInfo.pNext = &setBindingFlags;
+
+            VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_VERTEX_ATTRIBUTES]))
+        }
+
+        // set 3
+        // binding 0 -> faces
+        {
+            const VkDescriptorBindingFlags setFlag = VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
+
+            VkDescriptorSetLayoutBindingFlagsCreateInfo setBindingFlags;
+            setBindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+            setBindingFlags.pNext = nullptr;
+            setBindingFlags.pBindingFlags = &setFlag;
+            setBindingFlags.bindingCount = 1;
+
+            VkDescriptorSetLayoutBinding indicesLayoutBinding;
+            indicesLayoutBinding.binding = DESCRIPTOR_BINDING_FACE_DATA;
+            indicesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            indicesLayoutBinding.descriptorCount = static_cast<uint32_t>(sharedMeshFacesPool_.pool_size());;
+            indicesLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+
+            VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+            descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            descriptorSetLayoutCreateInfo.bindingCount = 1;
+            descriptorSetLayoutCreateInfo.pBindings = &indicesLayoutBinding;
+            descriptorSetLayoutCreateInfo.pNext = &setBindingFlags;
+
+            VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_FACE_DATA]))
+        }
+    }
+
+    void RayTracer::CreatePipelineLayout()
+    {
+        VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = { };
+        pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutCreateInfo.setLayoutCount = DESCRIPTOR_SET_SIZE;
+        pipelineLayoutCreateInfo.pSetLayouts = descriptorSetLayouts_.data();
+
+        VK_CHECK("vkCreatePipelineLayout", vkCreatePipelineLayout(device_, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout_));
+    }
+
+    void RayTracer::CreatePipeline()
+    {
+        Vulkan::Shader rayGenShader(device_);
+        Vulkan::Shader rayChitShader(device_);
+        Vulkan::Shader rayMissShader(device_);
+        Vulkan::Shader shadowChit(device_);
+        Vulkan::Shader shadowMiss(device_);
+
+        rayGenShader.LoadFromFile((shaderFolder_ + "ray_gen.bin").c_str());
+        rayChitShader.LoadFromFile((shaderFolder_ + "ray_chit.bin").c_str());
+        rayMissShader.LoadFromFile((shaderFolder_ + "ray_miss.bin").c_str());
+        shadowChit.LoadFromFile((shaderFolder_ + "shadow_ray_chit.bin").c_str());
+        shadowMiss.LoadFromFile((shaderFolder_ + "shadow_ray_miss.bin").c_str());
+
+        // Destroy any existing shader table before creating a new one
+        shaderBindingTable_.Destroy();
+
+        shaderBindingTable_.Initialize(2, 2, rayTracingProperties_.shaderGroupHandleSize, rayTracingProperties_.shaderGroupBaseAlignment);
+
+        // Ray generation stage
+        shaderBindingTable_.SetRaygenStage(rayGenShader.GetShaderStage(VK_SHADER_STAGE_RAYGEN_BIT_KHR));
+
+        // Hit stages
+        shaderBindingTable_.AddStageToHitGroup({ rayChitShader.GetShaderStage(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR) }, PRIMARY_HIT_SHADERS_INDEX);
+        shaderBindingTable_.AddStageToHitGroup({ shadowChit.GetShaderStage(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR) }, SHADOW_HIT_SHADERS_INDEX);
+
+        // Define miss stages for both primary and shadow misses
+        shaderBindingTable_.AddStageToMissGroup(rayMissShader.GetShaderStage(VK_SHADER_STAGE_MISS_BIT_KHR), PRIMARY_MISS_SHADERS_INDEX);
+        shaderBindingTable_.AddStageToMissGroup(shadowMiss.GetShaderStage(VK_SHADER_STAGE_MISS_BIT_KHR), SHADOW_MISS_SHADERS_INDEX);
+
+        // Create the pipeline for ray tracing based on shader binding table
+        VkRayTracingPipelineCreateInfoKHR rayPipelineInfo = {};
+        rayPipelineInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
+        rayPipelineInfo.stageCount = shaderBindingTable_.GetNumStages();
+        rayPipelineInfo.pStages = shaderBindingTable_.GetStages();
+        rayPipelineInfo.groupCount = shaderBindingTable_.GetNumGroups();
+        rayPipelineInfo.pGroups = shaderBindingTable_.GetGroups();
+        rayPipelineInfo.maxPipelineRayRecursionDepth = 1;
+        rayPipelineInfo.layout = pipelineLayout_;
+
+        VK_CHECK("vkCreateRayTracingPipelinesKHR", vkCreateRayTracingPipelinesKHR(device_, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rayPipelineInfo, nullptr, &pipeline_))
+
+        shaderBindingTable_.CreateSBT(device_, physicalDeviceMemoryProperties_, pipeline_);
+    }
+
+    void RayTracer::BuildAndSubmitRayTracingCommandBuffer(int cameraType)
+    {
+        graphicsInterface_->EnsureOutsideRenderPass();
+
+        /*VkCommandBuffer commandBuffer;
+        CreateWorkerCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, graphicsCommandPool_, commandBuffer);*/
+
+        UnityVulkanRecordingState recordingState;
+        if (!graphicsInterface_->CommandRecordingState(&recordingState, kUnityVulkanGraphicsQueueAccess_DontCare))
+        {
+            return;
+        }
+
+        vkCmdBindPipeline(
+            recordingState.commandBuffer,
+            VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+            pipeline_);
+
+        vkCmdBindDescriptorSets(
+            recordingState.commandBuffer,
+            VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+            pipelineLayout_, 0,
+            static_cast<uint32_t>(descriptorSets_.size()), descriptorSets_.data(),
+            0, 0);
+
+        VkStridedDeviceAddressRegionKHR raygenShaderEntry = {};
+        raygenShaderEntry.deviceAddress = shaderBindingTable_.GetBuffer().GetBufferDeviceAddress().deviceAddress + shaderBindingTable_.GetRaygenOffset();
+        raygenShaderEntry.stride = shaderBindingTable_.GetGroupsStride();
+        raygenShaderEntry.size = shaderBindingTable_.GetRaygenSize();
+
+        VkStridedDeviceAddressRegionKHR missShaderEntry{};
+        missShaderEntry.deviceAddress = shaderBindingTable_.GetBuffer().GetBufferDeviceAddress().deviceAddress + shaderBindingTable_.GetMissGroupsOffset();
+        missShaderEntry.stride = shaderBindingTable_.GetGroupsStride();
+        missShaderEntry.size = shaderBindingTable_.GetMissGroupsSize();
+
+        VkStridedDeviceAddressRegionKHR hitShaderEntry{};
+        hitShaderEntry.deviceAddress = shaderBindingTable_.GetBuffer().GetBufferDeviceAddress().deviceAddress + shaderBindingTable_.GetHitGroupsOffset();
+        hitShaderEntry.stride = shaderBindingTable_.GetGroupsStride();
+        hitShaderEntry.size = shaderBindingTable_.GetHitGroupsSize();
+
+        VkStridedDeviceAddressRegionKHR callableShaderEntry{};
+
+        // Dispatch the ray tracing commands
+        vkCmdBindPipeline(recordingState.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline_);
+        vkCmdBindDescriptorSets(recordingState.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout_, 0, static_cast<uint32_t>(descriptorSets_.size()), descriptorSets_.data(), 0, 0);
+
+        vkCmdTraceRaysKHR(
+            recordingState.commandBuffer,
+            &raygenShaderEntry,
+            &missShaderEntry,
+            &hitShaderEntry,
+            &callableShaderEntry,
+            renderTargets_[cameraType]->extent.width,
+            renderTargets_[cameraType]->extent.height,
+            1);
+
+        //SubmitWorkerCommandBuffer(commandBuffer, graphicsCommandPool_, graphicsQueue_);
+    }
+
+    void RayTracer::BuildDescriptorBufferInfos()
+    {
+        sceneBufferInfo_.buffer = sceneData_.GetBuffer();
+        sceneBufferInfo_.offset = 0;
+        sceneBufferInfo_.range = sceneData_.GetSize();
+    
+        cameraBufferInfo_.buffer = cameraData_.GetBuffer();
+        cameraBufferInfo_.offset = 0;
+        cameraBufferInfo_.range = cameraData_.GetSize();
+    
+        sharedMeshAttributesBufferInfos_.clear();
+        sharedMeshAttributesBufferInfos_.resize(sharedMeshAttributesPool_.pool_size());
+        for (int i = 0; i < sharedMeshAttributesPool_.pool_size(); ++i)
+        {
+            VkDescriptorBufferInfo& bufferInfo = sharedMeshAttributesBufferInfos_[i];
+            const Vulkan::Buffer& buffer = sharedMeshAttributesPool_[i];
+
+            bufferInfo.buffer = buffer.GetBuffer();
+            bufferInfo.offset = 0;
+            bufferInfo.range = buffer.GetSize();
+
+            sharedMeshAttributesBufferInfos_.push_back(bufferInfo);
+        }
+
+        sharedMeshFacesBufferInfos_.clear();
+        sharedMeshFacesBufferInfos_.resize(sharedMeshFacesPool_.pool_size());
+        for (int i = 0; i < sharedMeshFacesPool_.pool_size(); ++i)
+        {
+            VkDescriptorBufferInfo& bufferInfo = sharedMeshFacesBufferInfos_[i];
+            const Vulkan::Buffer& buffer = sharedMeshFacesPool_[i];
+
+            bufferInfo.buffer = buffer.GetBuffer();
+            bufferInfo.offset = 0;
+            bufferInfo.range = buffer.GetSize();
+
+            sharedMeshFacesBufferInfos_.push_back(bufferInfo);
+        }
+    }
+    
+    void RayTracer::CreateDescriptorPool() 
+    {   
+        // Descriptors are not generated directly, but from a pool.  Create that pool here
+        std::vector<VkDescriptorPoolSize> poolSizes({
+            { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },       // Top level acceleration structure
+            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 2 },                    // Game Render Target + Scene Render Target
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2},                    // Scene data + Camera data
+            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 * 2 }             // vertex attribs for each mesh + faces buffer for each mesh  Supports 1000 meshes at once?
+            });
+    
+        VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
+        descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        descriptorPoolCreateInfo.pNext = nullptr;
+        descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT; // This allows vkFreeDescriptorSets to be called
+        descriptorPoolCreateInfo.maxSets = DESCRIPTOR_SET_SIZE;
+        descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+        descriptorPoolCreateInfo.pPoolSizes = poolSizes.data();
+    
+        VK_CHECK("vkCreateDescriptorPool", vkCreateDescriptorPool(device_, &descriptorPoolCreateInfo, nullptr, &descriptorPool_))
+    
+            PFG_EDITORLOG("Successfully created descriptor pool")
+    }
+    
+    void RayTracer::UpdateDescriptorSets() 
+    {
+        if (!updateDescriptorSetsData_)
+        {
+            return;
+        }
+
+        if (descriptorSets_.size() > 0)
+        {
+            // Free existing descriptor sets before attempting to allocate new ones!
+            vkFreeDescriptorSets(device_, descriptorPool_, DESCRIPTOR_SET_SIZE, descriptorSets_.data());
+        }
+
+        // Update the descriptor sets with the actual data to store in memory.
+    
+        // Now use the pool to upload data for each descriptor
+        descriptorSets_.resize(DESCRIPTOR_SET_SIZE);
+        std::vector<uint32_t> variableDescriptorCounts({
+            1,                                                              // Set 0
+            1,                                                              // Set 1
+            static_cast<uint32_t>(sharedMeshAttributesPool_.pool_size()),   // Set 2
+            static_cast<uint32_t>(sharedMeshFacesPool_.pool_size())         // Set 3
+            });
+    
+        VkDescriptorSetVariableDescriptorCountAllocateInfo variableDescriptorCountInfo;
+        variableDescriptorCountInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
+        variableDescriptorCountInfo.pNext = nullptr;
+        variableDescriptorCountInfo.descriptorSetCount = DESCRIPTOR_SET_SIZE;
+        variableDescriptorCountInfo.pDescriptorCounts = variableDescriptorCounts.data(); // actual number of descriptors
+    
+        VkDescriptorSetAllocateInfo descriptorSetAllocateInfo;
+        descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        descriptorSetAllocateInfo.pNext = &variableDescriptorCountInfo;
+        descriptorSetAllocateInfo.descriptorPool = descriptorPool_;
+        descriptorSetAllocateInfo.descriptorSetCount = DESCRIPTOR_SET_SIZE;
+        descriptorSetAllocateInfo.pSetLayouts = descriptorSetLayouts_.data();
+    
+        VK_CHECK("vkAllocateDescriptorSets", vkAllocateDescriptorSets(device_, &descriptorSetAllocateInfo, descriptorSets_.data()))
+    
+        std::vector<VkWriteDescriptorSet> descriptorWrites;
+        // Set 0
+        {
+            // Acceleration Structure
+            {
+                VkWriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo;
+                descriptorAccelerationStructureInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+                descriptorAccelerationStructureInfo.pNext = nullptr;
+                descriptorAccelerationStructureInfo.accelerationStructureCount = 1;
+                descriptorAccelerationStructureInfo.pAccelerationStructures = &tlas_.accelerationStructure;
+
+                VkWriteDescriptorSet accelerationStructureWrite;
+                accelerationStructureWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                accelerationStructureWrite.pNext = &descriptorAccelerationStructureInfo; // Notice that pNext is assigned here!
+                accelerationStructureWrite.dstSet = descriptorSets_[DESCRIPTOR_SET_ACCELERATION_STRUCTURE];
+                accelerationStructureWrite.dstBinding = DESCRIPTOR_BINDING_ACCELERATION_STRUCTURE;
+                accelerationStructureWrite.dstArrayElement = 0;
+                accelerationStructureWrite.descriptorCount = 1;
+                accelerationStructureWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+                accelerationStructureWrite.pImageInfo = nullptr;
+                accelerationStructureWrite.pBufferInfo = nullptr;
+                accelerationStructureWrite.pTexelBufferView = nullptr;
+
+                descriptorWrites.push_back(accelerationStructureWrite);
+            }
+
+            // Scene data
+            {
+                VkWriteDescriptorSet sceneBufferWrite;
+                sceneBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                sceneBufferWrite.pNext = nullptr;
+                sceneBufferWrite.dstSet = descriptorSets_[DESCRIPTOR_SET_SCENE_DATA];
+                sceneBufferWrite.dstBinding = DESCRIPTOR_BINDING_SCENE_DATA;
+                sceneBufferWrite.dstArrayElement = 0;
+                sceneBufferWrite.descriptorCount = 1;
+                sceneBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                sceneBufferWrite.pImageInfo = nullptr;
+                sceneBufferWrite.pBufferInfo = &sceneBufferInfo_;
+                sceneBufferWrite.pTexelBufferView = nullptr;
+
+                descriptorWrites.push_back(sceneBufferWrite);
+            }
+
+            // Camera data
+            {
+                VkWriteDescriptorSet camdataBufferWrite;
+                camdataBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                camdataBufferWrite.pNext = nullptr;
+                camdataBufferWrite.dstSet = descriptorSets_[DESCRIPTOR_SET_CAMERA_DATA];
+                camdataBufferWrite.dstBinding = DESCRIPTOR_BINDING_CAMERA_DATA;
+                camdataBufferWrite.dstArrayElement = 0;
+                camdataBufferWrite.descriptorCount = 1;
+                camdataBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                camdataBufferWrite.pImageInfo = nullptr;
+                camdataBufferWrite.pBufferInfo = &cameraBufferInfo_;
+                camdataBufferWrite.pTexelBufferView = nullptr;
+
+                descriptorWrites.push_back(camdataBufferWrite);
+            }
+        }
+
+        // Set 1
+        // Declared outside of scope so it isn't destroyed before write
+        {
+            // Game render target
+            {
+                // From renderTargets_ map, Game = 1
+                VkDescriptorImageInfo descriptorRenderTargetGameImageInfo;
+                descriptorRenderTargetGameImageInfo.sampler = VK_NULL_HANDLE;
+                descriptorRenderTargetGameImageInfo.imageView = renderTargets_[1]->image.GetImageView();
+                descriptorRenderTargetGameImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+                VkWriteDescriptorSet renderTargetGameImageWrite;
+                renderTargetGameImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                renderTargetGameImageWrite.pNext = nullptr;
+                renderTargetGameImageWrite.dstSet = descriptorSets_[DESCRIPTOR_SET_RENDER_TARGETS];
+                renderTargetGameImageWrite.dstBinding = DESCRIPTOR_BINDING_RENDER_TARGETS_GAME;
+                renderTargetGameImageWrite.dstArrayElement = 0;
+                renderTargetGameImageWrite.descriptorCount = 1;
+                renderTargetGameImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+                renderTargetGameImageWrite.pImageInfo = &descriptorRenderTargetGameImageInfo;
+                renderTargetGameImageWrite.pBufferInfo = nullptr;
+                renderTargetGameImageWrite.pTexelBufferView = nullptr;
+
+                descriptorWrites.push_back(renderTargetGameImageWrite);
+            }
+
+            // Game render target
+            {
+                // From renderTargets_ map, SceneView = 2
+                VkDescriptorImageInfo descriptorRenderTargetSceneImageInfo;
+                descriptorRenderTargetSceneImageInfo.sampler = VK_NULL_HANDLE;
+                descriptorRenderTargetSceneImageInfo.imageView = renderTargets_[2]->image.GetImageView();
+                descriptorRenderTargetSceneImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+                VkWriteDescriptorSet renderTargetSceneImageWrite;
+                renderTargetSceneImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                renderTargetSceneImageWrite.pNext = nullptr;
+                renderTargetSceneImageWrite.dstSet = descriptorSets_[DESCRIPTOR_SET_RENDER_TARGETS];
+                renderTargetSceneImageWrite.dstBinding = DESCRIPTOR_BINDING_RENDER_TARGETS_SCENE;
+                renderTargetSceneImageWrite.dstArrayElement = 0;
+                renderTargetSceneImageWrite.descriptorCount = 1;
+                renderTargetSceneImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+                renderTargetSceneImageWrite.pImageInfo = &descriptorRenderTargetSceneImageInfo;
+                renderTargetSceneImageWrite.pBufferInfo = nullptr;
+                renderTargetSceneImageWrite.pTexelBufferView = nullptr;
+
+                descriptorWrites.push_back(renderTargetSceneImageWrite);
+            }
+        }
+       
+        // Set 2
+        {
+            // Vertex attributes
+            {
+                VkWriteDescriptorSet attribsBufferWrite;
+                attribsBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                attribsBufferWrite.pNext = nullptr;
+                attribsBufferWrite.dstSet = descriptorSets_[DESCRIPTOR_SET_VERTEX_ATTRIBUTES];
+                attribsBufferWrite.dstBinding = DESCRIPTOR_BINDING_VERTEX_ATTRIBUTES;
+                attribsBufferWrite.dstArrayElement = 0;
+                attribsBufferWrite.descriptorCount = static_cast<uint32_t>(sharedMeshAttributesPool_.pool_size());
+                attribsBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                attribsBufferWrite.pImageInfo = nullptr;
+                attribsBufferWrite.pBufferInfo = sharedMeshAttributesBufferInfos_.data();
+                attribsBufferWrite.pTexelBufferView = nullptr;
+
+                descriptorWrites.push_back(attribsBufferWrite);
+            }
+
+            // Faces
+            {
+                VkWriteDescriptorSet facesBufferWrite;
+                facesBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                facesBufferWrite.pNext = nullptr;
+                facesBufferWrite.dstSet = descriptorSets_[DESCRIPTOR_SET_FACE_DATA];
+                facesBufferWrite.dstBinding = DESCRIPTOR_BINDING_FACE_DATA;
+                facesBufferWrite.dstArrayElement = 0;
+                facesBufferWrite.descriptorCount = static_cast<uint32_t>(sharedMeshFacesPool_.pool_size());;
+                facesBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                facesBufferWrite.pImageInfo = nullptr;
+                facesBufferWrite.pBufferInfo = sharedMeshFacesBufferInfos_.data();
+                facesBufferWrite.pTexelBufferView = nullptr;
+
+                descriptorWrites.push_back(facesBufferWrite);
+            }
+        }
+    
+        vkUpdateDescriptorSets(device_, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, VK_NULL_HANDLE);
+   
+        // Make sure unnecessary updates aren't made
+        updateDescriptorSetsData_ = false;
+
+        PFG_EDITORLOG("Successfully updated descriptor sets")
+    }
+
 }

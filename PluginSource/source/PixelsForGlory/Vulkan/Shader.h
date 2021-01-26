@@ -1,12 +1,12 @@
 #pragma once
 #include "../../vulkan.h"
 
-namespace PixelsForGlory
+namespace PixelsForGlory::Vulkan
 {
-    class VulkanShader {
+    class Shader {
     public:
-        VulkanShader(VkDevice device);
-        ~VulkanShader();
+        Shader(VkDevice device);
+        ~Shader();
 
         /// <summary>
         /// Load shader from file

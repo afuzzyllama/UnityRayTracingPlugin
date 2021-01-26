@@ -11,6 +11,8 @@
 #include "../ResourcePool.h"
 #include "Buffer.h"
 #include "Image.h"
+#include "Shader.h"
+#include "ShaderBindingTable.h"
 
 #include "ShaderConstants.h"
 
@@ -93,6 +95,7 @@ namespace PixelsForGlory::Vulkan
             , localToWorld(mat4())
         {}
 
+        int gameObjectInstanceId;
         int sharedMeshIndex;
         mat4 localToWorld;
     };
@@ -108,8 +111,11 @@ namespace PixelsForGlory::Vulkan
             return instance;
         }
 
+        /*VkDebugUtilsMessengerEXT debugMessenger_;*/
+
         // Friend so hook functions can access
         friend void ResolvePropertiesAndQueues_RayTracer(VkPhysicalDevice physicalDevice);
+        friend VkResult CreateInstance_RayTracer(const VkInstanceCreateInfo* unityCreateInfo, const VkAllocationCallbacks* unityAllocator, VkInstance* instance);
         friend VkResult CreateDevice_RayTracer(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo* unityCreateInfo, const VkAllocationCallbacks* unityAllocator, VkDevice* device);
 
         // Deleted functions should generally be public as it results in better error messages due to 
@@ -130,18 +136,20 @@ namespace PixelsForGlory::Vulkan
         void Shutdown();
 
 #pragma region RayTracerAPI
+        virtual void SetShaderFolder(std::string shaderFolder);
         virtual int SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, void* textureHandle);
         virtual bool ProcessDeviceEvent(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces);
         virtual int GetSharedMeshIndex(int sharedMeshInstanceId);
         virtual int AddSharedMesh(int instanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount);
-        virtual int AddTlasInstance(int sharedMeshIndex, float* l2wMatrix);
+        virtual int GetTlasInstanceIndex(int gameObjectInstanceId);
+        virtual int AddTlasInstance(int gameObjectInstanceId, int sharedMeshIndex, float* l2wMatrix);
         virtual void RemoveTlasInstance(int meshInstanceIndex);
         virtual void BuildTlas();
-        virtual void Prepare(int width, int height);
+        virtual void Prepare();
         virtual void UpdateCamera(float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov);
         virtual void UpdateSceneData(float* color);
-        virtual void TraceRays();
-        virtual void CopyImageToTexture(void* TextureHandle);
+        virtual void TraceRays(int cameraType);
+        virtual void CopyRenderToTarget(int cameraType);
 #pragma endregion RayTracerAPI
 
 
@@ -168,29 +176,65 @@ namespace PixelsForGlory::Vulkan
         VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties_;
         VkPhysicalDeviceRayTracingPipelinePropertiesKHR rayTracingProperties_;
         
-        // camera.InstanceId => target
+        bool alreadyPrepared_;
+
+        // Camera.cameraType => target
         std::map<int, std::unique_ptr<RayTracerRenderTarget>> renderTargets_;
 
 #pragma region SharedMeshMembers
+
        resourcePool<std::unique_ptr<RayTracerMeshSharedData>> sharedMeshesPool_;
 
-       // ShaderConstants -> ShaderVertexAttribute buffer
+       // ShaderConstants -> Buffer that represents ShaderVertexAttribute 
        resourcePool<Vulkan::Buffer> sharedMeshAttributesPool_;
+       std::vector<VkDescriptorBufferInfo> sharedMeshAttributesBufferInfos_;
 
-       // SharedConstants -> ShaderFace
+       // SharedConstants -> Buffer that represents ShaderFace
        resourcePool<Vulkan::Buffer> sharedMeshFacesPool_;
+       std::vector<VkDescriptorBufferInfo> sharedMeshFacesBufferInfos_;
+
 #pragma endregion SharedMeshMembers
 
 #pragma region MeshInstanceMembers
+
        resourcePool<std::unique_ptr<RayTracerMeshInstanceData>> meshInstancePool_;
+       
+       // Buffer that represents VkAccelerationStructureInstanceKHR
        Vulkan::Buffer instancesAccelerationStructuresBuffer_;
 
        RayTracerAccelerationStructure tlas_;
        bool rebuildTlas_;
        bool updateTlas_;
+
 #pragma endregion MeshInstanceMembers
 
+#pragma region ShaderResources
 
+       std::string shaderFolder_;
+       
+       Vulkan::ShaderBindingTable shaderBindingTable_;
+
+       // Buffer that represents ShaderCameraParam
+       Vulkan::Buffer cameraData_;
+       VkDescriptorBufferInfo cameraBufferInfo_;
+
+       // Buffer that represents ShaderSceneParam
+       Vulkan::Buffer sceneData_;
+       VkDescriptorBufferInfo sceneBufferInfo_;
+
+       std::vector<VkDescriptorSetLayout> descriptorSetLayouts_;
+       VkDescriptorPool                   descriptorPool_;
+       std::vector<VkDescriptorSet>       descriptorSets_;
+       bool updateDescriptorSetsData_;
+
+#pragma endregion ShaderResources
+
+#pragma region PipelineResources
+
+       VkPipelineLayout pipelineLayout_;
+       VkPipeline pipeline_;
+
+#pragma endregion PipelineResources
 
         RayTracer();    // Private for singleton
 
@@ -203,14 +247,14 @@ namespace PixelsForGlory::Vulkan
         /// <summary>
         /// Creates a command buffer that is intended for quick use and will be destroyed when flushed
         /// </summary>
-        void CreateWorkerCommandBuffer(VkCommandBufferLevel level, const VkCommandPool& commandPool, VkCommandBuffer& outCommandBuffer);
+        void CreateWorkerCommandBuffer(VkCommandBufferLevel level, VkCommandPool commandPool, VkCommandBuffer& outCommandBuffer);
 
         /// <summary>
         /// Submits a command buffer created by CreateWorkerCommandBuffer
         /// </summary>
         /// <param name="commandBuffer"></param>
         /// <param name="queue"></param>
-        void SubmitWorkerCommandBuffer(VkCommandBuffer commandBuffer, const VkQueue& queue);
+        void SubmitWorkerCommandBuffer(VkCommandBuffer commandBuffer, VkCommandPool commandPool, const VkQueue& queue);
 
         /// <summary>
         /// Build a bottom level acceleration structure for an added shared mesh
@@ -218,5 +262,39 @@ namespace PixelsForGlory::Vulkan
         /// <param name="sharedMeshPoolIndex"></param>
         void BuildBlas(int sharedMeshPoolIndex);
 
+        /// <summary>
+        /// Create descriptor set layouts for shaders
+        /// </summary>
+        void CreateDescriptorSetsLayouts();
+
+        /// <summary>
+        /// Creates ray tracing pipeline layout
+        /// </summary>
+        void CreatePipelineLayout();
+
+        /// <summary>
+        /// Creates ray tracing pipeline
+        /// </summary>
+        void CreatePipeline();
+
+        /// <summary>
+        /// Builds and submits ray tracing commands
+        /// </summary>
+        void BuildAndSubmitRayTracingCommandBuffer(int cameraType);
+
+        /// <summary>
+        /// Builds descriptor buffer infos for descriptor sets
+        /// </summary>
+        void BuildDescriptorBufferInfos();
+
+        /// <summary>
+        /// Create the descriptor pool for generating descriptor sets
+        /// </summary>
+        void CreateDescriptorPool();
+
+        /// <summary>
+        /// Update the descriptor sets for the shader
+        /// </summary>
+        void UpdateDescriptorSets();
     };
 }

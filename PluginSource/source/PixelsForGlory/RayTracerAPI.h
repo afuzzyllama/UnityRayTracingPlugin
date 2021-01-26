@@ -4,6 +4,7 @@
 #include "../Unity/IUnityGraphics.h"
 
 #include <stddef.h>
+#include <string>
 
 struct IUnityInterfaces;
 
@@ -13,6 +14,11 @@ namespace PixelsForGlory
     {
     public:
         virtual ~RayTracerAPI() { }
+
+        /// <summary>
+        /// Set the shader folder to pull shaders from
+        /// </summary>
+        virtual void SetShaderFolder(std::string shaderFolder) = 0;
 
         /// <summary>
         /// Creates or updates a camera render target
@@ -54,12 +60,20 @@ namespace PixelsForGlory
         virtual int AddSharedMesh(int instanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount) = 0;
 
         /// <summary>
+        /// Method to check if a instancehas already been added, saves gathering handles if exists
+        /// </summary>
+        /// <param name="gameObjectInstanceId"></param>
+        /// <returns></returns>
+        virtual int GetTlasInstanceIndex(int gameObjectInstanceId) = 0;
+
+        /// <summary>
         /// Add transform for an instance to be build on the tlas
         /// </summary>
+        /// <param name="gameObjectInstanceId"></param>
         /// <param name="meshInstanceId"></param>
         /// <param name="sharedMeshInstanceId"></param>
         /// <param name="l2wMatrix"></param>
-        virtual int AddTlasInstance(int sharedMeshIndex, float* l2wMatrix) = 0;
+        virtual int AddTlasInstance(int gameObjectInstanceId, int sharedMeshIndex, float* l2wMatrix) = 0;
             
         /// <summary>
         /// Removes instance to be removed on next tlas build
@@ -73,15 +87,36 @@ namespace PixelsForGlory
         virtual void BuildTlas() = 0;
 
         /// <summary>
-        /// Prepare ray tracer to render
+        /// Prepare the ray tracer for rendering
         /// </summary>
-        virtual void Prepare(int width, int height) = 0;
+        virtual void Prepare() = 0;
 
+        /// <summary>
+        /// Update camera data
+        /// </summary>
+        /// <param name="camPos"></param>
+        /// <param name="camDir"></param>
+        /// <param name="camUp"></param>
+        /// <param name="camSide"></param>
+        /// <param name="camNearFarFov"></param>
         virtual void UpdateCamera(float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov) = 0;
+
+        /// <summary>
+        /// Update scene data 
+        /// </summary>
+        /// <param name="color"></param>
         virtual void UpdateSceneData(float* color) = 0;
 
-        virtual void TraceRays() = 0;
-        virtual void CopyImageToTexture(void* TextureHandle) = 0;
+        /// <summary>
+        /// Ray those rays!
+        /// </summary>
+        virtual void TraceRays(int cameraType) = 0;
+
+        /// <summary>
+        /// Copy an image to a Unity3d texture for display
+        /// </summary>
+        /// <param name="TextureHandle"></param>
+        virtual void CopyRenderToTarget(int cameraType) = 0;
     };
 
     // Create a graphics API implementation instance for the given API type.

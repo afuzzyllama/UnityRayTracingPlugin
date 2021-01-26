@@ -9,6 +9,9 @@ namespace PixelsForGlory
         public static extern void SetTimeFromUnity(float t);
 
         [DllImport("RayTracingPlugin")]
+        public static extern int SetShaderFolder(string shaderFolder);
+
+        [DllImport("RayTracingPlugin")]
         public static extern int SetRenderTarget(int cameraObjectIstanceId, int unityTextureFormat, int width, int height, IntPtr destination);
 
         [DllImport("RayTracingPlugin")]
@@ -21,7 +24,10 @@ namespace PixelsForGlory
         public static extern int AddSharedMesh(int sharedMeshInstanceId, IntPtr vertices, IntPtr normals, IntPtr uvs, int vertexCount, IntPtr indices, int indexCount);
 
         [DllImport("RayTracingPlugin")]
-        public static extern int AddTlasInstance(int sharedMeshIndex, IntPtr l2wMatrix);
+        public static extern int GetTlasInstanceIndex(int gameObjectInstanceId);
+
+        [DllImport("RayTracingPlugin")]
+        public static extern int AddTlasInstance(int gameObjectInstanceId, int sharedMeshIndex, IntPtr l2wMatrix);
 
         [DllImport("RayTracingPlugin")]
         public static extern void RemoveTlasInstance(int meshInstanceIndex);

@@ -5,8 +5,11 @@
 #include "../../Unity/IUnityGraphics.h"
 #include "../../Unity/IUnityGraphicsVulkan.h"
 
+#include "../Debug.h"
+
 namespace PixelsForGlory::Vulkan
 {
+    extern VkResult CreateInstance_RayTracer(const VkInstanceCreateInfo* unityCreateInfo, const VkAllocationCallbacks* unityAllocator, VkInstance* instance);
     extern VkResult CreateDevice_RayTracer(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo* unityCreateInfo, const VkAllocationCallbacks* unityAllocator, VkDevice* device);
 }
 
@@ -17,16 +20,10 @@ static VKAPI_ATTR VkResult VKAPI_CALL Hook_vkCreateInstance(const VkInstanceCrea
 {
     PFG_EDITORLOG("Hook_vkCreateInstance")
 
-    //
-    vkCreateInstance = (PFN_vkCreateInstance)vkGetInstanceProcAddr(VK_NULL_HANDLE, "vkCreateInstance");
-
-    VkResult result = vkCreateInstance(pCreateInfo, pAllocator, pInstance);
+    VkResult result = PixelsForGlory::Vulkan::CreateInstance_RayTracer(pCreateInfo, pAllocator, pInstance);
     VK_CHECK("vkCreateInstance", result)
 
-    if (result == VK_SUCCESS)
-    {
-        volkLoadInstance(*pInstance);
-    }
+    PFG_EDITORLOG("Hooked into vkCreateInstance successfully");
 
     return result;
 }

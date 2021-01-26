@@ -9,8 +9,6 @@ class RayTraceableObject : MonoBehaviour
     [ReadOnly] public int SharedMeshInstanceId;
     [ReadOnly] public int SharedMeshIndex;
     [ReadOnly] public int MeshInstanceIndex;
-    private bool _meshInstanceSent = false;
-
 
     private MeshFilter _meshFilterRef = null;
     private MeshFilter _meshFilter
@@ -75,8 +73,11 @@ class RayTraceableObject : MonoBehaviour
 
     private void SendInstanceToPlugin()
     {
-        if(_meshInstanceSent)
+        MeshInstanceIndex = PixelsForGlory.RayTracingPlugin.GetTlasInstanceIndex(GetInstanceID());
+
+        if (MeshInstanceIndex >= 0)
         {
+            // Nothing to do
             return;
         }
 
@@ -84,11 +85,9 @@ class RayTraceableObject : MonoBehaviour
         var l2wMatrix = transform.localToWorldMatrix;
         var l2wMatrixHandle = GCHandle.Alloc(l2wMatrix, GCHandleType.Pinned);
         
-        MeshInstanceIndex = PixelsForGlory.RayTracingPlugin.AddTlasInstance(SharedMeshIndex, l2wMatrixHandle.AddrOfPinnedObject());
+        MeshInstanceIndex = PixelsForGlory.RayTracingPlugin.AddTlasInstance(GetInstanceID(), SharedMeshIndex, l2wMatrixHandle.AddrOfPinnedObject());
 
         l2wMatrixHandle.Free();
-
-        _meshInstanceSent = true;
     }
 
     private void RemoveInstanceFromPlugin()

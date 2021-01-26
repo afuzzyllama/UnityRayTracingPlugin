@@ -4,13 +4,13 @@
 #include <vector>
 
 
-namespace PixelsForGlory
+namespace PixelsForGlory::Vulkan
 {
-    class VulkanShaderBindingTable
+    class ShaderBindingTable
     {
     public:
-        VulkanShaderBindingTable();
-        ~VulkanShaderBindingTable() = default;
+        ShaderBindingTable();
+        ~ShaderBindingTable() = default;
 
         /// <summary>
         /// Initialize the table

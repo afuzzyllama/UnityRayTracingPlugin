@@ -59,6 +59,9 @@ extern "C" void    UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IU
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload()
 {
     s_Graphics->UnregisterDeviceEventCallback(OnGraphicsDeviceEvent);
+
+    // Clear debug callback because it will freeze Application.Reload
+    //ClearDebugCallback();
 }
 
 // --------------------------------------------------------------------------
@@ -99,22 +102,21 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
     }
 }
 
-static void UNITY_INTERFACE_API OnRenderEvent(int eventID)
+static void UNITY_INTERFACE_API OnRenderEvent(int cameraType)
 {
     // Unknown / unsupported graphics device type? Do nothing
     PLUGIN_CHECK()
 
-    s_CurrentAPI->TraceRays();
-    
-    void* textureHandle = g_TextureHandle;
-    int width = g_TextureWidth;
-    int height = g_TextureHeight;
-    if (!textureHandle)
-    {
-        return;
-    }
+    // EventID is the camera id?
+    s_CurrentAPI->TraceRays(cameraType);
+    s_CurrentAPI->CopyRenderToTarget(cameraType);
+}
 
-    s_CurrentAPI->CopyImageToTexture(textureHandle);
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetShaderFolder(const char* shaderFolder)
+{
+    PLUGIN_CHECK()
+
+    s_CurrentAPI->SetShaderFolder(std::string(shaderFolder));
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, void* textureHandle)
@@ -139,11 +141,18 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddSharedMesh(int inst
     return s_CurrentAPI->AddSharedMesh(instanceId, verticesArray, normalsArray, uvsArray, vertexCount, indicesArray, indexCount);
 }
 
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddTlasInstance(int sharedMeshIndex, float* l2wMatrix)
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetTlasInstanceIndex(int gameObjectInstanceId)
 {
     PLUGIN_CHECK_RETURN(-1)
 
-    return s_CurrentAPI->AddTlasInstance(sharedMeshIndex, l2wMatrix);
+    return s_CurrentAPI->GetTlasInstanceIndex(gameObjectInstanceId);
+}
+
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddTlasInstance(int gameObjectInstanceId, int sharedMeshIndex, float* l2wMatrix)
+{
+    PLUGIN_CHECK_RETURN(-1)
+
+    return s_CurrentAPI->AddTlasInstance(gameObjectInstanceId, sharedMeshIndex, l2wMatrix);
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RemoveTlasInstance(int meshInstanceIndex)
