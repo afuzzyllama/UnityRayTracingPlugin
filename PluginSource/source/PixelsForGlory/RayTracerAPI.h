@@ -92,6 +92,11 @@ namespace PixelsForGlory
         virtual void Prepare() = 0;
 
         /// <summary>
+        /// Resets the pipeline to trigger reloading of shaders
+        /// </summary>
+        virtual void ResetPipeline() = 0;
+
+        /// <summary>
         /// Update camera data
         /// </summary>
         /// <param name="camPos"></param>

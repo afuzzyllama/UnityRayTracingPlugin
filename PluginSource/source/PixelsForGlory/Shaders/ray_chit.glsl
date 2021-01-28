@@ -95,13 +95,14 @@ void main() {
     //     ao = textureLod(TexturesArray[nonuniformEXT(mat.aoIndex)], uv, 0.0f).rgb;
     // }
 
-    // // Return payload to gen shader
+    // Return payload to gen shader
+    PrimaryRay.albedo = vec4(1.0f, 1.0f, 1.0f, 1.0f);
     // PrimaryRay.albedo = vec4(texel, 0.0f);
     // PrimaryRay.normal = vec4(normal, 0.0f);
     // PrimaryRay.roughness = vec4(roughness, 0.0f);
     // PrimaryRay.metallic = metallic;
     // PrimaryRay.ao = vec4(ao, 0.0f);
-    // PrimaryRay.distance = gl_HitTEXT;
+    PrimaryRay.distance = gl_HitTEXT;
     // PrimaryRay.matId = matID;
 }
 

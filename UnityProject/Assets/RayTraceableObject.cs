@@ -51,6 +51,9 @@ class RayTraceableObject : MonoBehaviour
         var uvs = _meshFilter.sharedMesh.uv;
         var indices = _meshFilter.sharedMesh.triangles;
 
+        //Debug.Log($"{_meshFilter.sharedMesh.GetInstanceID()} verts: {vertices.Length}");
+        //Debug.Log($"{_meshFilter.sharedMesh.GetInstanceID()} indices: {indices.Length}");
+
         var verticesHandle = GCHandle.Alloc(vertices, GCHandleType.Pinned);
         var normalsHandle = GCHandle.Alloc(normals, GCHandleType.Pinned);
         var uvsHandle = GCHandle.Alloc(uvs, GCHandleType.Pinned);
@@ -82,9 +85,18 @@ class RayTraceableObject : MonoBehaviour
         }
 
         // Send instance information to plugin ONCE
+        
+
         var l2wMatrix = transform.localToWorldMatrix;
         var l2wMatrixHandle = GCHandle.Alloc(l2wMatrix, GCHandleType.Pinned);
-        
+
+        //Debug.Log("SendInstanceToPlugin");
+        //Debug.Log($"{l2wMatrix[0,0]} {l2wMatrix[0,1]} {l2wMatrix[0,2]} {l2wMatrix[0,3]}");
+        //Debug.Log($"{l2wMatrix[1,0]} {l2wMatrix[1,1]} {l2wMatrix[1,2]} {l2wMatrix[1,3]}");
+        //Debug.Log($"{l2wMatrix[2,0]} {l2wMatrix[2,1]} {l2wMatrix[2,2]} {l2wMatrix[2,3]}");
+        //Debug.Log($"{l2wMatrix[3,0]} {l2wMatrix[3,1]} {l2wMatrix[3,2]} {l2wMatrix[3,3]}");
+        //Debug.Log("--------------------");
+
         MeshInstanceIndex = PixelsForGlory.RayTracingPlugin.AddTlasInstance(GetInstanceID(), SharedMeshIndex, l2wMatrixHandle.AddrOfPinnedObject());
 
         l2wMatrixHandle.Free();

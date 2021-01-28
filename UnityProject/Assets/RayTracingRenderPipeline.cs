@@ -18,11 +18,11 @@ public class RayTracingRenderPipeline : RenderPipeline
 
         foreach (var camera in cameras)
         {
-            var camPosHandle = GCHandle.Alloc(Camera.main.transform.position, GCHandleType.Pinned);
-            var camDirHandle = GCHandle.Alloc(Camera.main.transform.forward, GCHandleType.Pinned);
-            var camUpHandle = GCHandle.Alloc(Camera.main.transform.up, GCHandleType.Pinned);
-            var camSideHandle = GCHandle.Alloc(Camera.main.transform.right, GCHandleType.Pinned);
-            var camNearFarFovHandle = GCHandle.Alloc(new Vector3(Camera.main.nearClipPlane, Camera.main.farClipPlane, Camera.main.fieldOfView), GCHandleType.Pinned);
+            var camPosHandle = GCHandle.Alloc(camera.transform.position, GCHandleType.Pinned);
+            var camDirHandle = GCHandle.Alloc(camera.transform.forward, GCHandleType.Pinned);
+            var camUpHandle = GCHandle.Alloc(camera.transform.up, GCHandleType.Pinned);
+            var camSideHandle = GCHandle.Alloc(camera.transform.right, GCHandleType.Pinned);
+            var camNearFarFovHandle = GCHandle.Alloc(new Vector3(camera.nearClipPlane, camera.farClipPlane, camera.fieldOfView), GCHandleType.Pinned);
             PixelsForGlory.RayTracingPlugin.UpdateCamera(camPosHandle.AddrOfPinnedObject(),
                                                          camDirHandle.AddrOfPinnedObject(),
                                                          camUpHandle.AddrOfPinnedObject(),

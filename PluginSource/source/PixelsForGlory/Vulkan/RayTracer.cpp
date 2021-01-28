@@ -602,7 +602,7 @@ namespace PixelsForGlory::Vulkan
         if (sentMesh->vertexBuffer.Create(
                 device_,
                 physicalDeviceMemoryProperties_,
-                sizeof(vec3) * vertexCount,
+                sizeof(vec3) * sentMesh->vertexCount,
                 VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                 Vulkan::Buffer::kDefaultMemoryPropertyFlags) 
             != VK_SUCCESS)
@@ -614,8 +614,8 @@ namespace PixelsForGlory::Vulkan
         if (sentMesh->indexBuffer.Create(
             device_,
             physicalDeviceMemoryProperties_,
-            sizeof(int) * indexCount,
-            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+            sizeof(uint32_t) * sentMesh->indexCount,
+            VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
             Vulkan::Buffer::kDefaultMemoryPropertyFlags))
         {
             PFG_EDITORLOGERROR("Failed to create index buffer for shared mesh instance id " + std::to_string(instanceId))
@@ -625,7 +625,7 @@ namespace PixelsForGlory::Vulkan
         if (sentMeshAttributes.Create(
             device_,
                 physicalDeviceMemoryProperties_,
-                sizeof(ShaderVertexAttribute) * vertexCount,
+                sizeof(ShaderVertexAttribute) * sentMesh->vertexCount,
                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                 Vulkan::Buffer::kDefaultMemoryPropertyFlags)
             != VK_SUCCESS)
@@ -638,7 +638,7 @@ namespace PixelsForGlory::Vulkan
         if (sentMeshFaces.Create(
             device_,
             physicalDeviceMemoryProperties_,
-            sizeof(ShaderFace) * vertexCount / 3,
+            sizeof(ShaderFace) * sentMesh->indexCount / 3,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
             Vulkan::Buffer::kDefaultMemoryPropertyFlags)
             != VK_SUCCESS)
@@ -655,10 +655,8 @@ namespace PixelsForGlory::Vulkan
     
         // Creating buffers was successful.  Move onto getting the data in there
         auto vertices = reinterpret_cast<vec3*>(sentMesh->vertexBuffer.Map());
-        auto indices = reinterpret_cast<int*>(sentMesh->indexBuffer.Map());
-    
-        auto vertexAttributes = reinterpret_cast<ShaderVertexAttribute*>(sentMeshAttributes.Map());
-    
+        auto indices = reinterpret_cast<uint32_t*>(sentMesh->indexBuffer.Map());
+        auto vertexAttributes = reinterpret_cast<ShaderVertexAttribute*>(sentMeshAttributes.Map()); 
         auto faces = reinterpret_cast<ShaderFace*>(sentMeshFaces.Map());
         
         // verticesArray and normalsArray are size vertexCount * 3 since they actually represent an array of vec3
@@ -670,6 +668,8 @@ namespace PixelsForGlory::Vulkan
             vertices[i].y = verticesArray[3 * i + 1];
             vertices[i].z = verticesArray[3 * i + 2];
     
+            //PFG_EDITORLOG("vertex #" + std::to_string(i) + ": " + std::to_string(vertices[i].x) + ", " + std::to_string(vertices[i].y) + ", " + std::to_string(vertices[i].z))
+
             // Build for shader
             vertexAttributes[i].normal.x = normalsArray[3 * i + 0];
             vertexAttributes[i].normal.y = normalsArray[3 * i + 1];
@@ -683,21 +683,23 @@ namespace PixelsForGlory::Vulkan
         for (int i = 0; i < indexCount / 3; ++i)
         {
             // Build for acceleration structure
-            indices[i + 0] = indicesArray[i + 0];
-            indices[i + 1] = indicesArray[i + 1];
-            indices[i + 2] = indicesArray[i + 2];
-    
+            indices[3 * i + 0] = static_cast<uint32_t>(indicesArray[3 * i + 0]);
+            indices[3 * i + 1] = static_cast<uint32_t>(indicesArray[3 * i + 1]);
+            indices[3 * i + 2] = static_cast<uint32_t>(indicesArray[3 * i + 2]);
+
+            //PFG_EDITORLOG("face #" + std::to_string(i) + ": " + std::to_string(indices[3 * i + 0]) + ", " + std::to_string(indices[3 * i + 1]) + ", " + std::to_string(indices[3 * i + 2]))
+
             // Build for shader
-            faces[i].index0 = indicesArray[i + 0];
-            faces[i].index1 = indicesArray[i + 1];
-            faces[i].index2 = indicesArray[i + 2];
+            faces[i].index0 = static_cast<uint32_t>(indicesArray[3 * i + 0]);
+            faces[i].index1 = static_cast<uint32_t>(indicesArray[3 * i + 1]);
+            faces[i].index2 = static_cast<uint32_t>(indicesArray[3 * i + 2]);
         }
         
         sentMesh->vertexBuffer.Unmap();
         sentMesh->indexBuffer.Unmap();
         sentMeshAttributes.Unmap();
         sentMeshFaces.Unmap();
-    
+
         // All done creating the data, get it added to the pool
         int sharedMeshIndex = sharedMeshesPool_.add(std::move(sentMesh));
     
@@ -769,7 +771,7 @@ namespace PixelsForGlory::Vulkan
             // We have no instances, so there is nothing to build 
             return;
         }
-        
+     
         if (!update)
         {
             // Build instance buffer from scratch
@@ -783,21 +785,31 @@ namespace PixelsForGlory::Vulkan
                 auto instanceIndex = (*i);
 
                 const auto& t = meshInstancePool_[instanceIndex]->localToWorld;
-                VkTransformMatrixKHR transform_matrix = {
+                VkTransformMatrixKHR transformMatrix = {
                     t[0][0], t[0][1], t[0][2], t[0][3],
                     t[1][0], t[1][1], t[1][2], t[1][3],
                     t[2][0], t[2][1], t[2][2], t[2][3]
                 };
 
+                /*PFG_EDITORLOG("Instance transform matrix loop: ")
+                PFG_EDITORLOG(std::to_string(transformMatrix.matrix[0][0]) + ", " + std::to_string(transformMatrix.matrix[0][1]) + ", " + std::to_string(transformMatrix.matrix[0][2]) + ", " + std::to_string(transformMatrix.matrix[0][3]))
+                PFG_EDITORLOG(std::to_string(transformMatrix.matrix[1][0]) + ", " + std::to_string(transformMatrix.matrix[1][1]) + ", " + std::to_string(transformMatrix.matrix[1][2]) + ", " + std::to_string(transformMatrix.matrix[1][3]))
+                PFG_EDITORLOG(std::to_string(transformMatrix.matrix[2][0]) + ", " + std::to_string(transformMatrix.matrix[2][1]) + ", " + std::to_string(transformMatrix.matrix[2][2]) + ", " + std::to_string(transformMatrix.matrix[2][3]))*/
+
                 auto sharedMeshIndex = meshInstancePool_[instanceIndex]->sharedMeshIndex;
 
                 VkAccelerationStructureInstanceKHR& accelerationStructureInstance = instanceAccelerationStructures[instanceAccelerationStructuresIndex];
-                accelerationStructureInstance.transform = transform_matrix;
+                accelerationStructureInstance.transform = transformMatrix;
                 accelerationStructureInstance.instanceCustomIndex = instanceIndex;
                 accelerationStructureInstance.mask = 0xFF;
                 accelerationStructureInstance.instanceShaderBindingTableRecordOffset = 0;
                 accelerationStructureInstance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
                 accelerationStructureInstance.accelerationStructureReference = sharedMeshesPool_[meshInstancePool_[instanceIndex]->sharedMeshIndex]->blas.deviceAddress;
+
+                /*PFG_EDITORLOG("VkAccelerationStructureInstanceKHR.transform: ")
+                PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[0][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][3]))
+                PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[1][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[1][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[1][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[1][3]))
+                PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[2][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[2][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[2][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[2][3]))*/
 
                 // Consumed current index, advance
                 ++instanceAccelerationStructuresIndex;
@@ -813,6 +825,18 @@ namespace PixelsForGlory::Vulkan
                 VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                 Vulkan::Buffer::kDefaultMemoryPropertyFlags);
             instancesAccelerationStructuresBuffer_.UploadData(instanceAccelerationStructures.data(), instancesAccelerationStructuresBuffer_.GetSize());
+
+            /*auto instances = reinterpret_cast<VkAccelerationStructureInstanceKHR*>(instancesAccelerationStructuresBuffer_.Map());
+            for (int i = 0; i < meshInstancePool_.in_use_size(); ++i)
+            {
+
+                PFG_EDITORLOG("Instance transform matrix after upload: ")
+                PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[0][0]) + ", " + std::to_string(instances[i].transform.matrix[0][1]) + ", " + std::to_string(instances[i].transform.matrix[0][2]) + ", " + std::to_string(instances[i].transform.matrix[0][3]))
+                PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[1][0]) + ", " + std::to_string(instances[i].transform.matrix[1][1]) + ", " + std::to_string(instances[i].transform.matrix[1][2]) + ", " + std::to_string(instances[i].transform.matrix[1][3]))
+                PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[2][0]) + ", " + std::to_string(instances[i].transform.matrix[2][1]) + ", " + std::to_string(instances[i].transform.matrix[2][2]) + ", " + std::to_string(instances[i].transform.matrix[2][3]))
+
+            }
+            instancesAccelerationStructuresBuffer_.Unmap();*/
         }
         else
         {
@@ -827,29 +851,48 @@ namespace PixelsForGlory::Vulkan
                 auto instanceIndex = (*i);
 
                 const auto& t = meshInstancePool_[instanceIndex]->localToWorld;
-                VkTransformMatrixKHR transform_matrix = {
+                VkTransformMatrixKHR transformMatrix = {
                     t[0][0], t[0][1], t[0][2], t[0][3],
                     t[1][0], t[1][1], t[1][2], t[1][3],
                     t[2][0], t[2][1], t[2][2], t[2][3]
                 };
 
-                instances[instanceAccelerationStructuresIndex].transform = transform_matrix;
-                
+                //PFG_EDITORLOG("Instance transform matrix: ")
+                //PFG_EDITORLOG(std::to_string(t[0][0]) + ", " + std::to_string(t[0][1]) + ", " + std::to_string(t[0][2]) + ", " + std::to_string(t[0][3]))
+                //PFG_EDITORLOG(std::to_string(t[1][0]) + ", " + std::to_string(t[1][1]) + ", " + std::to_string(t[1][2]) + ", " + std::to_string(t[1][3]))
+                //PFG_EDITORLOG(std::to_string(t[2][0]) + ", " + std::to_string(t[2][1]) + ", " + std::to_string(t[2][2]) + ", " + std::to_string(t[2][3]))
 
+                instances[instanceAccelerationStructuresIndex].transform = transformMatrix;
+                
                 // Consumed current index, advance
                 ++instanceAccelerationStructuresIndex;
             }
             instancesAccelerationStructuresBuffer_.Unmap();
         }
 
+        //auto instances = reinterpret_cast<VkAccelerationStructureInstanceKHR*>(instancesAccelerationStructuresBuffer_.Map());
+        //for (int i = 0; i < meshInstancePool_.in_use_size(); ++i)
+        //{
+        //    
+        //    PFG_EDITORLOG("Instance transform matrix: ")
+        //        PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[0][0]) + ", " + std::to_string(instances[i].transform.matrix[0][1]) + ", " + std::to_string(instances[i].transform.matrix[0][2]) + ", " + std::to_string(instances[i].transform.matrix[0][3]))
+        //        PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[1][0]) + ", " + std::to_string(instances[i].transform.matrix[1][1]) + ", " + std::to_string(instances[i].transform.matrix[1][2]) + ", " + std::to_string(instances[i].transform.matrix[1][3]))
+        //        PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[2][0]) + ", " + std::to_string(instances[i].transform.matrix[2][1]) + ", " + std::to_string(instances[i].transform.matrix[2][2]) + ", " + std::to_string(instances[i].transform.matrix[2][3]))
+        //        
+        //}
+        //instancesAccelerationStructuresBuffer_.Unmap();
+
         // The top level acceleration structure contains (bottom level) instance as the input geometry
+        VkAccelerationStructureGeometryInstancesDataKHR accelerationStructureGeometryInstancesData = {};
+        accelerationStructureGeometryInstancesData.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+        accelerationStructureGeometryInstancesData.arrayOfPointers = VK_FALSE;
+        accelerationStructureGeometryInstancesData.data.deviceAddress = instancesAccelerationStructuresBuffer_.GetBufferDeviceAddressConst().deviceAddress;
+
         VkAccelerationStructureGeometryKHR accelerationStructureGeometry = {};
         accelerationStructureGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
-        accelerationStructureGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
         accelerationStructureGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
-        accelerationStructureGeometry.geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
-        accelerationStructureGeometry.geometry.instances.arrayOfPointers = VK_FALSE;
-        accelerationStructureGeometry.geometry.instances.data = instancesAccelerationStructuresBuffer_.GetBufferDeviceAddressConst();
+        accelerationStructureGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+        accelerationStructureGeometry.geometry.instances = accelerationStructureGeometryInstancesData;
 
         // Get the size requirements for buffers involved in the acceleration structure build process
         VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo = {};
@@ -859,8 +902,8 @@ namespace PixelsForGlory::Vulkan
         accelerationStructureBuildGeometryInfo.geometryCount = 1;
         accelerationStructureBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
 
-        // Number of acceleration structures
-        const uint32_t primitiveCount = static_cast<uint32_t>(meshInstancePool_.in_use_size());
+        // Number of instances
+        uint32_t instancesCount = static_cast<uint32_t>(meshInstancePool_.in_use_size());
 
         VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo = {};
         accelerationStructureBuildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
@@ -868,20 +911,21 @@ namespace PixelsForGlory::Vulkan
             device_,
             VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
             &accelerationStructureBuildGeometryInfo,
-            &primitiveCount,
+            &instancesCount,
             &accelerationStructureBuildSizesInfo);
 
-        // Create a buffer to hold the acceleration structure
-        tlas_.buffer.Create(
-            device_,
-            physicalDeviceMemoryProperties_,
-            accelerationStructureBuildSizesInfo.accelerationStructureSize,
-            VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR,
-            Vulkan::Buffer::kDefaultMemoryPropertyFlags);
-
-        
         if (!update)
         {
+            tlas_.buffer.Destroy();
+
+            // Create a buffer to hold the acceleration structure
+            tlas_.buffer.Create(
+                device_,
+                physicalDeviceMemoryProperties_,
+                accelerationStructureBuildSizesInfo.accelerationStructureSize,
+                VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR,
+                Vulkan::Buffer::kDefaultMemoryPropertyFlags);
+
             // Create the acceleration structure
             VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo = {};
             accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
@@ -913,13 +957,15 @@ namespace PixelsForGlory::Vulkan
         accelerationBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
         accelerationBuildGeometryInfo.scratchData = scratchBuffer.GetBufferDeviceAddress();
 
+
         VkAccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo;
-        accelerationStructureBuildRangeInfo.primitiveCount = 1;
+        accelerationStructureBuildRangeInfo.primitiveCount = static_cast<uint32_t>(meshInstancePool_.in_use_size());
         accelerationStructureBuildRangeInfo.primitiveOffset = 0;
         accelerationStructureBuildRangeInfo.firstVertex = 0;
         accelerationStructureBuildRangeInfo.transformOffset = 0;
-        std::vector<VkAccelerationStructureBuildRangeInfoKHR*> accelerationStructureBuildRangeInfos = { &accelerationStructureBuildRangeInfo };
 
+        const VkAccelerationStructureBuildRangeInfoKHR* constAccelerationStructureBuildRangeInfo = &accelerationStructureBuildRangeInfo;
+        
         // Build the acceleration structure on the device via a one-time command buffer submission
         // Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
         VkCommandBuffer commandBuffer;
@@ -928,7 +974,7 @@ namespace PixelsForGlory::Vulkan
             commandBuffer,
             1,
             &accelerationBuildGeometryInfo,
-            accelerationStructureBuildRangeInfos.data());
+            &constAccelerationStructureBuildRangeInfo);
         SubmitWorkerCommandBuffer(commandBuffer, graphicsCommandPool_, graphicsQueue_);
 
         scratchBuffer.Destroy();
@@ -960,6 +1006,15 @@ namespace PixelsForGlory::Vulkan
         CreateDescriptorPool();
 
         alreadyPrepared_ = true;
+    }
+
+    void RayTracer::ResetPipeline()
+    {
+        if (pipeline_ != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(device_, pipeline_, nullptr);
+            pipeline_ = VK_NULL_HANDLE;
+        }
     }
 
     void RayTracer::UpdateCamera(float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov) 
@@ -1024,6 +1079,7 @@ namespace PixelsForGlory::Vulkan
         if (tlas_.accelerationStructure == VK_NULL_HANDLE)
         {
             // We don't have a tlas, so we cannot trace rays!
+            return;
         }
 
         if (pipelineLayout_ == VK_NULL_HANDLE)
@@ -1154,6 +1210,7 @@ namespace PixelsForGlory::Vulkan
 
     void RayTracer::CreateWorkerCommandBuffer(VkCommandBufferLevel level, VkCommandPool commandPool, VkCommandBuffer& outCommandBuffer)
     {
+        //TODO : Can we just use a recording state from unity?
         VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
         commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         commandBufferAllocateInfo.commandPool = commandPool;
@@ -1221,21 +1278,26 @@ namespace PixelsForGlory::Vulkan
         transformBuffer.Create(
             device_, 
             physicalDeviceMemoryProperties_, 
-            sizeof(transformMatrix), 
+            sizeof(VkTransformMatrixKHR),
             VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
             Vulkan::Buffer::kDefaultMemoryPropertyFlags);
+        transformBuffer.UploadData(&transformMatrix, sizeof(VkTransformMatrixKHR));
 
-        auto transform = reinterpret_cast<VkTransformMatrixKHR*>(transformBuffer.Map());
-        *transform = transformMatrix;
-        transformBuffer.Unmap();
+        //auto identity = reinterpret_cast<VkTransformMatrixKHR*>(transformBuffer.Map());
+        //PFG_EDITORLOG("Identity matrix: ")
+        //PFG_EDITORLOG(std::to_string(identity->matrix[0][0]) + ", " + std::to_string(identity->matrix[0][1]) + ", " + std::to_string(identity->matrix[0][2]) + ", " + std::to_string(identity->matrix[0][3]))
+        //PFG_EDITORLOG(std::to_string(identity->matrix[1][0]) + ", " + std::to_string(identity->matrix[1][1]) + ", " + std::to_string(identity->matrix[1][2]) + ", " + std::to_string(identity->matrix[1][3]))
+        //PFG_EDITORLOG(std::to_string(identity->matrix[2][0]) + ", " + std::to_string(identity->matrix[2][1]) + ", " + std::to_string(identity->matrix[2][2]) + ", " + std::to_string(identity->matrix[2][3]))
+        //transformBuffer.Unmap();
 
         // The bottom level acceleration structure contains one set of triangles as the input geometry
         VkAccelerationStructureGeometryKHR accelerationStructureGeometry = {};
         accelerationStructureGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
         accelerationStructureGeometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
         accelerationStructureGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
-    
+
         accelerationStructureGeometry.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
+        accelerationStructureGeometry.geometry.triangles.pNext = nullptr;
         accelerationStructureGeometry.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
         accelerationStructureGeometry.geometry.triangles.vertexData = sharedMeshesPool_[sharedMeshPoolIndex]->vertexBuffer.GetBufferDeviceAddressConst();
         accelerationStructureGeometry.geometry.triangles.maxVertex = sharedMeshesPool_[sharedMeshPoolIndex]->vertexCount;
@@ -1243,8 +1305,7 @@ namespace PixelsForGlory::Vulkan
         accelerationStructureGeometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
         accelerationStructureGeometry.geometry.triangles.indexData = sharedMeshesPool_[sharedMeshPoolIndex]->indexBuffer.GetBufferDeviceAddressConst();
         accelerationStructureGeometry.geometry.triangles.transformData = transformBuffer.GetBufferDeviceAddressConst();
-        accelerationStructureGeometry.geometry.triangles.pNext = nullptr;
-    
+        
         // Get the size requirements for buffers involved in the acceleration structure build process
         VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo = {};
         accelerationStructureBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
@@ -1255,6 +1316,8 @@ namespace PixelsForGlory::Vulkan
 
         // Number of triangles 
         const uint32_t primitiveCount = sharedMeshesPool_[sharedMeshPoolIndex]->indexCount / 3;
+        /*PFG_EDITORLOG("BuildBlas() vertexCount: " + std::to_string(sharedMeshesPool_[sharedMeshPoolIndex]->vertexCount))
+        PFG_EDITORLOG("BuildBlas() indexCount: " + std::to_string(sharedMeshesPool_[sharedMeshPoolIndex]->indexCount))*/
 
         VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo = {};
         accelerationStructureBuildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
@@ -1302,7 +1365,7 @@ namespace PixelsForGlory::Vulkan
         accelerationBuildGeometryInfo.scratchData = scratchBuffer.GetBufferDeviceAddress();
 
         VkAccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo = { };
-        accelerationStructureBuildRangeInfo.primitiveCount = 1;
+        accelerationStructureBuildRangeInfo.primitiveCount = primitiveCount;
         accelerationStructureBuildRangeInfo.primitiveOffset = 0;
         accelerationStructureBuildRangeInfo.firstVertex = 0;
         accelerationStructureBuildRangeInfo.transformOffset = 0;
@@ -1320,6 +1383,7 @@ namespace PixelsForGlory::Vulkan
             accelerationStructureBuildRangeInfos.data());
         SubmitWorkerCommandBuffer(buildCommandBuffer, graphicsCommandPool_, graphicsQueue_);
 
+        transformBuffer.Destroy();
         scratchBuffer.Destroy();
 
         // Get the bottom acceleration structure's handle, which will be used during the top level acceleration build

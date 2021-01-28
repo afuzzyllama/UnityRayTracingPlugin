@@ -28,50 +28,50 @@ layout(set = DESCRIPTOR_SET_CAMERA_DATA,            binding = DESCRIPTOR_BINDING
 layout(location = LOCATION_PRIMARY_RAY) rayPayloadEXT ShaderRayPayload PrimaryRay;
 layout(location = LOCATION_SHADOW_RAY)  rayPayloadEXT ShaderShadowRayPayload ShadowRay;
 
-// const uint rayFlags = gl_RayFlagsOpaqueEXT;
-// const uint shadowRayFlags = gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT;
-// const uint cullMask = 0xFF;
-// const uint sbtRecordStride = 1;
-// const float tmin = 0.0f;
-// const float AIR_REFRACTICE_INDEX = 1.0003f;
-// const float PI = 3.1415926535897932384626433832795f;
+const uint rayFlags = gl_RayFlagsOpaqueEXT;
+const uint shadowRayFlags = gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT;
+const uint cullMask = 0xFF;
+const uint sbtRecordStride = 1;
+const float tmin = 0.0f;
+const float AIR_REFRACTICE_INDEX = 1.0003f;
+const float PI = 3.1415926535897932384626433832795f;
 
-// const float nudgeFactor = 0.01f;
-
-
-// // Structure that represnts a cast ray
-// struct RayCastData {
-//     vec3 origin;
-//     vec3 direction;
-//     vec3 attenuation;
-//     uint recursionLevel;
-//     float threshold;
-//     float indexOfRefraction;
-//     bool inside;
-//     int parentIndex;
-//     vec3 globalReflectivity;
-//     vec3 globalTransmission;
-//     vec3 color;
-// };
-
-// // Array to store "recursive" ray calls
-// RayCastData rays[2 ^ SWS_MAX_RECURSION - 1];
-// int rayCount = 0;
+const float nudgeFactor = 0.01f;
 
 
-// // Calculate the ray direction for the hit
-// vec3 CalcRayDir(vec2 screenUV, float aspect) {
-//     vec3 u = CameraParams.camSide.xyz;
-//     vec3 v = CameraParams.camUp.xyz;
+// Structure that represnts a cast ray
+struct RayCastData {
+    vec3 origin;
+    vec3 direction;
+    vec3 attenuation;
+    uint recursionLevel;
+    float threshold;
+    float indexOfRefraction;
+    bool inside;
+    int parentIndex;
+    vec3 globalReflectivity;
+    vec3 globalTransmission;
+    vec3 color;
+};
 
-//     const float planeWidth = tan(CameraParams.camNearFarFov.z * 0.5f);
+// Array to store "recursive" ray calls
+RayCastData rays[2 ^ RAYTRACE_MAX_RECURSION - 1];
+int rayCount = 0;
 
-//     u *= (planeWidth * aspect);
-//     v *= planeWidth;
 
-//     const vec3 rayDir = normalize(CameraParams.camDir.xyz + (u * screenUV.x) - (v * screenUV.y));
-//     return rayDir;
-// }
+// Calculate the ray direction for the hit
+vec3 CalcRayDir(vec2 screenUV, float aspect) {
+    vec3 u = CameraParams.camSide.xyz;
+    vec3 v = CameraParams.camUp.xyz;
+
+    const float planeWidth = tan(CameraParams.camNearFarFov.z * 0.5f);
+
+    u *= (planeWidth * aspect);
+    v *= planeWidth;
+
+    const vec3 rayDir = normalize(CameraParams.camDir.xyz + (u * screenUV.x) - (v * screenUV.y));
+    return rayDir;
+}
 
 // // Figure out if a hit is in shadow
 // bool InShadow(in vec3 hitPos, in vec3 hitNormal, in uint lightType, in vec3 lightPos, in vec3 lightColor, in float distance, inout vec3 shadowColor)
@@ -344,171 +344,162 @@ layout(location = LOCATION_SHADOW_RAY)  rayPayloadEXT ShaderShadowRayPayload Sha
 // }
 
 // Trace a ray
-// vec3 TraceRay() {
-//     int currentRayIndex = 0;
+vec3 TraceRay() {
+    int currentRayIndex = 0;
 
-//     // Since we cannot use recursion, process all rays added to "rays" until there are no rays left to process
-//     while(currentRayIndex < rayCount)
-//     {
-//         const vec3 origin = rays[currentRayIndex].origin;
-//         const vec3 direction = rays[currentRayIndex].direction;
+    // Since we cannot use recursion, process all rays added to "rays" until there are no rays left to process
+    while(currentRayIndex < rayCount)
+    {
+        const vec3 origin = rays[currentRayIndex].origin;
+        const vec3 direction = rays[currentRayIndex].direction;
 
-//         // Real time ray tracing!
-//         traceRayEXT(Scene,
-//                     rayFlags,
-//                     cullMask,
-//                     SWS_PRIMARY_HIT_SHADERS_IDX,
-//                     sbtRecordStride,
-//                     SWS_PRIMARY_MISS_SHADERS_IDX,
-//                     origin,
-//                     tmin,
-//                     direction,
-//                     CameraParams.camNearFarFov.y, // tmax
-//                     SWS_LOC_PRIMARY_RAY);
+        // Real time ray tracing!
+        traceRayEXT(Scene,
+                    rayFlags,
+                    cullMask,
+                    PRIMARY_HIT_SHADERS_INDEX,
+                    sbtRecordStride,
+                    PRIMARY_MISS_SHADERS_INDEX,
+                    origin,
+                    tmin,
+                    direction,
+                    CameraParams.camNearFarFov.y, // camera.Far = tmax
+                    LOCATION_PRIMARY_RAY);
 
-//         const float hitDistance = PrimaryRay.distance;
-//         if (hitDistance < 0.0f) {
-//             // Ray missed, nothing else to process
-//             rays[currentRayIndex].color = PrimaryRay.albedo.rgb;
-//             currentRayIndex++;
-//             continue;
-//         } 
+        const float hitDistance = PrimaryRay.distance;
+        rays[currentRayIndex].color = PrimaryRay.albedo.rgb;
+        // if (hitDistance < 0.0f) {
+        //     // Ray missed, nothing else to process
+        //     rays[currentRayIndex].color = PrimaryRay.albedo.rgb;
+        //     currentRayIndex++;
+        //     continue;
+        // } 
 
-//         // If we got here, we hit something!
-//         // Gather information from hit
-//         const uint matId = int(PrimaryRay.matId);
-//         const MaterialParam material = MaterialParams[matId];
+        // // If we got here, we hit something!
+        // // Gather information from hit
+        // const uint matId = int(PrimaryRay.matId);
+        // const MaterialParam material = MaterialParams[matId];
 
-//         const vec3 hitPos = origin + direction * hitDistance;
-//         const vec3 hitNormal = PrimaryRay.normal.xyz;
+        // const vec3 hitPos = origin + direction * hitDistance;
+        // const vec3 hitNormal = PrimaryRay.normal.xyz;
        
-//         // If hitDistance >= 0.0f, the hitColor is the result of the texture sample
-//         const bool  textured = true;
-//         const vec3  textureColor = PrimaryRay.albedo.rgb; 
-//         const vec3  roughness = PrimaryRay.roughness.rgb;
-//         const float metallic = PrimaryRay.metallic;
-//         const vec3  ambientOcclusion = PrimaryRay.ao.rgb;
+        // // If hitDistance >= 0.0f, the hitColor is the result of the texture sample
+        // const bool  textured = true;
+        // const vec3  textureColor = PrimaryRay.albedo.rgb; 
+        // const vec3  roughness = PrimaryRay.roughness.rgb;
+        // const float metallic = PrimaryRay.metallic;
+        // const vec3  ambientOcclusion = PrimaryRay.ao.rgb;
         
-//         // Get ray color from lighting
-//         rays[currentRayIndex].color = CookTorrancePBR(hitPos, hitNormal, material.emission.rgb, textureColor, metallic, roughness, ambientOcclusion);
+        // // Get ray color from lighting
+        // rays[currentRayIndex].color = CookTorrancePBR(hitPos, hitNormal, material.emission.rgb, textureColor, metallic, roughness, ambientOcclusion);
         
-//         int parentIndex = currentRayIndex;
-//         if(rays[currentRayIndex].recursionLevel == 0 || BelowThreshold(rays[currentRayIndex]))
-//         {
-//             // Return if max depth is reached or attenuation is below threshold (do not spawn additional rays)
-//              break;
-//         }
+        // int parentIndex = currentRayIndex;
+        // if(rays[currentRayIndex].recursionLevel == 0 || BelowThreshold(rays[currentRayIndex]))
+        // {
+        //     // Return if max depth is reached or attenuation is below threshold (do not spawn additional rays)
+        //      break;
+        // }
 
-//         // Reflected ray (do not spawn if inside an object). Only reflect if metallic.
-//         if (!rays[currentRayIndex].inside && material.metallic > 0.0f)
-//         {
-//             // Get the reflected ray, attenuate it, and trace it to get a color
-//             RayCastData reflectedRay = GetReflectedRay(rays[currentRayIndex], hitPos, hitNormal);
+        // // Reflected ray (do not spawn if inside an object). Only reflect if metallic.
+        // if (!rays[currentRayIndex].inside && material.metallic > 0.0f)
+        // {
+        //     // Get the reflected ray, attenuate it, and trace it to get a color
+        //     RayCastData reflectedRay = GetReflectedRay(rays[currentRayIndex], hitPos, hitNormal);
 
-//             // Attenuate the ray and trace the transmitted ray
-//             reflectedRay.parentIndex = parentIndex;
-//             reflectedRay.attenuation = rays[currentRayIndex].attenuation * material.metallic;
-//             reflectedRay.globalTransmission = vec3(0.0f);
-//             reflectedRay.globalReflectivity = vec3(material.metallic);
+        //     // Attenuate the ray and trace the transmitted ray
+        //     reflectedRay.parentIndex = parentIndex;
+        //     reflectedRay.attenuation = rays[currentRayIndex].attenuation * material.metallic;
+        //     reflectedRay.globalTransmission = vec3(0.0f);
+        //     reflectedRay.globalReflectivity = vec3(material.metallic);
 
-//             // Add ray for processing
-//             rays[rayCount] = reflectedRay;
-//             ++rayCount;
-//         }
+        //     // Add ray for processing
+        //     rays[rayCount] = reflectedRay;
+        //     ++rayCount;
+        // }
 
-//         // Transmitted ray
-//         if (material.transmittance.r > 0.0f || material.transmittance.g > 0.0f || material.transmittance.b > 0.0f)
-//         {
-//             vec3 normal = hitNormal;
-//              // Reverse the normal direction if the ray is inside
-//              if (rays[currentRayIndex].inside) {
-//                  normal *= -1.0f;
-//              }
+        // // Transmitted ray
+        // if (material.transmittance.r > 0.0f || material.transmittance.g > 0.0f || material.transmittance.b > 0.0f)
+        // {
+        //     vec3 normal = hitNormal;
+        //      // Reverse the normal direction if the ray is inside
+        //      if (rays[currentRayIndex].inside) {
+        //          normal *= -1.0f;
+        //      }
 
-//              bool tir = false;
-//              RayCastData transmittedRay = GetRefractedRay(rays[currentRayIndex], hitPos, normal, material, tir);
+        //      bool tir = false;
+        //      RayCastData transmittedRay = GetRefractedRay(rays[currentRayIndex], hitPos, normal, material, tir);
 
-//              // Do not trace if total intenal reflection
-//              if (!tir)
-//              {
-//                 // Attenuate the ray and trace the transmitted ray
-//                 transmittedRay.parentIndex = parentIndex;
-//                 transmittedRay.attenuation = rays[currentRayIndex].attenuation * material.transmittance.rgb;
-//                 transmittedRay.globalTransmission = material.transmittance.rgb;
-//                 transmittedRay.globalReflectivity = vec3(0.0f);
+        //      // Do not trace if total intenal reflection
+        //      if (!tir)
+        //      {
+        //         // Attenuate the ray and trace the transmitted ray
+        //         transmittedRay.parentIndex = parentIndex;
+        //         transmittedRay.attenuation = rays[currentRayIndex].attenuation * material.transmittance.rgb;
+        //         transmittedRay.globalTransmission = material.transmittance.rgb;
+        //         transmittedRay.globalReflectivity = vec3(0.0f);
 
-//                 // Add ray for processing
-//                 rays[rayCount] = transmittedRay;
-//                 rayCount++;
-//              }
-//         }
+        //         // Add ray for processing
+        //         rays[rayCount] = transmittedRay;
+        //         rayCount++;
+        //      }
+        // }
         
-//         // We're done here, process the next ray
-//         currentRayIndex++;
-//     }   
+        // We're done here, process the next ray
+        currentRayIndex++;
+    }   
     
-//     // Calcuate final color for ray based on all cast rays
-//     vec3 finalColor = vec3(0.0f);
-//     for(int i = rayCount - 1; i >= 0; --i) {
-//         if(i == 0) {
-//             // We are at the root node, get the color and we're done!
-//             finalColor = rays[0].color;
-//             break;
-//         }
+    // Calcuate final color for ray based on all cast rays
+    vec3 finalColor = vec3(0.0f);
+    for(int i = rayCount - 1; i >= 0; --i) {
+        if(i == 0) {
+            // We are at the root node, get the color and we're done!
+            finalColor = rays[0].color;
+            break;
+        }
 
-//         // Add transmitted ray color
-//         rays[rays[i].parentIndex].color += rays[i].color * rays[i].globalTransmission;
+        // Add transmitted ray color
+        // rays[rays[i].parentIndex].color += rays[i].color * rays[i].globalTransmission;
 
-//         // Add reflected ray color
-//         rays[rays[i].parentIndex].color += rays[i].color * rays[i].globalReflectivity;
-//     }
+        // Add reflected ray color
+        //rays[rays[i].parentIndex].color += rays[i].color * rays[i].globalReflectivity;
+    }
 
-//     // Clamp color
-//     clamp(finalColor, vec3(0.0f), vec3(1.0f));
+    // Clamp color
+    clamp(finalColor, vec3(0.0f), vec3(1.0f));
 
-//     return finalColor;
-// }
+    return finalColor;
+}
 
 void main() {
 
     // Get current pixel information    
-    //const vec2 curPixel = vec2(gl_LaunchIDEXT.xy);
-    //const vec2 bottomRight = vec2(gl_LaunchSizeEXT.xy - 1);
-    //const vec2 uv = (curPixel / bottomRight) * 2.0f - 1.0f;
-    // const float aspect = float(gl_LaunchSizeEXT.x) / float(gl_LaunchSizeEXT.y);
+    const vec2 curPixel = vec2(gl_LaunchIDEXT.xy);
+    const vec2 bottomRight = vec2(gl_LaunchSizeEXT.xy - 1);
+    const vec2 uv = (curPixel / bottomRight) * 2.0f - 1.0f;
+    const float aspect = float(gl_LaunchSizeEXT.x) / float(gl_LaunchSizeEXT.y);
 
-    // // Kick off root ray!
-    // vec3 origin = CameraParams.camPos.xyz;
-    // vec3 direction = CalcRayDir(uv, aspect);
+    // Kick off root ray!
+    vec3 origin = CameraParams.camPos.xyz;
+    vec3 direction = CalcRayDir(uv, aspect);
 
-    // RayCastData originRay;
-    // originRay.origin = origin;
-    // originRay.direction = direction;
-    // originRay.attenuation = vec3(1.0f);
-    // originRay.inside = false;
-    // originRay.recursionLevel = SWS_MAX_RECURSION;
-    // originRay.parentIndex = -1;
-    // originRay.indexOfRefraction = AIR_REFRACTICE_INDEX;
-    // originRay.color = vec3(0.0f);
+    RayCastData originRay;
+    originRay.origin = origin;
+    originRay.direction = direction;
+    originRay.attenuation = vec3(1.0f);
+    originRay.inside = false;
+    originRay.recursionLevel = RAYTRACE_MAX_RECURSION;
+    originRay.parentIndex = -1;
+    originRay.indexOfRefraction = AIR_REFRACTICE_INDEX;
+    originRay.color = vec3(0.0f);
 
-    // rays[0] = originRay;
-    // rayCount = 1;
+    rays[0] = originRay;
+    rayCount = 1;
+ 
+    vec3 finalColor = TraceRay();
 
-     
-     //vec3 finalColor = TraceRay();
+    // Return result to image      
+    // TODO: We don't need to write to both!
+    imageStore(GameRenderTarget, ivec2(gl_LaunchIDEXT.xy), vec4(finalColor, 1.0f));
+    imageStore(SceneRenderTarget, ivec2(gl_LaunchIDEXT.xy), vec4(finalColor, 1.0f));               
 
-    vec4 finalColor;
-    if(gl_LaunchIDEXT.x / 16 % 2 == 0 && gl_LaunchIDEXT.y / 16 % 2 == 0)
-    {
-        finalColor = vec4(1.0f, 0.0f, 1.0f, 1.0f);
-    }
-    else
-    {
-        finalColor = vec4(0.0f, 0.0f, 0.0f, 1.0f);
-    }
-
-     // Return result to image      
-     // TODO: We don't need to write to both!
-    imageStore(GameRenderTarget, ivec2(gl_LaunchIDEXT.xy), finalColor);
-    imageStore(SceneRenderTarget, ivec2(gl_LaunchIDEXT.xy), finalColor);
 }

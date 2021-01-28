@@ -36,6 +36,8 @@
 #define LOCATION_PRIMARY_RAY    0
 #define LOCATION_SHADOW_RAY     1
 
+#define RAYTRACE_MAX_RECURSION 5
+
 #ifdef __cplusplus
 
 #define align4  alignas(4)
@@ -52,13 +54,12 @@
 #endif
 
 struct ShaderRayPayload {
-    align16 vec4 color;
+    align16 vec4 albedo;
+    align4 float distance;
 };
 
 struct ShaderShadowRayPayload {
     align16 vec4 color;
-    align4 float distance;
-
 };
 
 // Ability to resolve vertex in hit shader

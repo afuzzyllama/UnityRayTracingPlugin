@@ -176,6 +176,13 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API Prepare()
     s_CurrentAPI->Prepare();
 }
 
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ResetPipeline()
+{
+    PLUGIN_CHECK()
+
+    s_CurrentAPI->ResetPipeline();
+}
+
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateCamera(float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov)
 {
     PLUGIN_CHECK()

@@ -146,6 +146,7 @@ namespace PixelsForGlory::Vulkan
         virtual void RemoveTlasInstance(int meshInstanceIndex);
         virtual void BuildTlas();
         virtual void Prepare();
+        virtual void ResetPipeline();
         virtual void UpdateCamera(float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov);
         virtual void UpdateSceneData(float* color);
         virtual void TraceRays(int cameraType);
