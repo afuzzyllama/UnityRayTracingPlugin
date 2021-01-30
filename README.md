@@ -2,6 +2,7 @@
 Proof of concept native plugin for Unity3d that replaces the renderer with a hardware accelerated ray tracer.
 
 Heavily influenced by:
+- [Unity Native Rendering Plugin](https://github.com/Unity-Technologies/NativeRenderingPlugin)
 - [rtxOn](https://github.com/iOrange/rtxON)
 - [NVIDIA Vulkan Ray Tracing Tutorials](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR)
 - [Khronos Vulkan Samples](https://github.com/KhronosGroup/Vulkan-Samples)
@@ -12,5 +13,5 @@ Includes zips with versions used to build for:
 - [stb](https://github.com/nothings/stb) - Image loader 
 - [volk](https://github.com/zeux/volk) - Meta-loader for Vulkan
 
-Tested on RTX 2080 with [NVIDIA Vulkan Beta drivers](https://developer.nvidia.com/vulkan-driver) installed.
+Tested on RTX 2080 with [NVIDIA Vulkan Beta drivers](https://developer.nvidia.com/vulkan-driver) installed (457.67).
 Builds with [Vulkan SDK](https://vulkan.lunarg.com/sdk/home) version 1.2.162.1
