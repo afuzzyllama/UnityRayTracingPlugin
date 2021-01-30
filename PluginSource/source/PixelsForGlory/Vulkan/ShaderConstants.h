@@ -15,9 +15,8 @@
 #define DESCRIPTOR_BINDING_CAMERA_DATA            2
 
 // Set 1
-#define DESCRIPTOR_SET_RENDER_TARGETS             1
-#define DESCRIPTOR_BINDING_RENDER_TARGETS_GAME    0
-#define DESCRIPTOR_BINDING_RENDER_TARGETS_SCENE   1
+#define DESCRIPTOR_SET_RENDER_TARGET     1
+#define DESCRIPTOR_BINDING_RENDER_TARGET 0
 
 // Set 2
 #define DESCRIPTOR_SET_VERTEX_ATTRIBUTES          2
@@ -60,6 +59,7 @@ struct ShaderRayPayload {
 
 struct ShaderShadowRayPayload {
     align16 vec4 color;
+    align4 float distance;
 };
 
 // Ability to resolve vertex in hit shader

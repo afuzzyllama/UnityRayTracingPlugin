@@ -39,16 +39,16 @@ namespace PixelsForGlory::Vulkan
     struct RayTracerRenderTarget
     {
         RayTracerRenderTarget()
-            : image(Vulkan::Image())
+            : destination(nullptr)
             , format(VK_FORMAT_UNDEFINED)
             , extent(VkExtent3D())
-            , destination(nullptr)
         {}
 
-        Vulkan::Image image;
+        void* destination;
         VkFormat format;
         VkExtent3D extent;
-        void* destination;
+        Vulkan::Image stagingImage;
+        
     };
 
     struct RayTracerAccelerationStructure
@@ -111,7 +111,7 @@ namespace PixelsForGlory::Vulkan
             return instance;
         }
 
-        /*VkDebugUtilsMessengerEXT debugMessenger_;*/
+        VkDebugUtilsMessengerEXT debugMessenger_;
 
         // Friend so hook functions can access
         friend void ResolvePropertiesAndQueues_RayTracer(VkPhysicalDevice physicalDevice);
@@ -137,7 +137,7 @@ namespace PixelsForGlory::Vulkan
 
 #pragma region RayTracerAPI
         virtual void SetShaderFolder(std::string shaderFolder);
-        virtual int SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, void* textureHandle);
+        virtual int SetRenderTarget(int unityTextureFormat, int width, int height, void* textureHandle);
         virtual bool ProcessDeviceEvent(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces);
         virtual int GetSharedMeshIndex(int sharedMeshInstanceId);
         virtual int AddSharedMesh(int instanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount);
@@ -149,8 +149,7 @@ namespace PixelsForGlory::Vulkan
         virtual void ResetPipeline();
         virtual void UpdateCamera(float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov);
         virtual void UpdateSceneData(float* color);
-        virtual void TraceRays(int cameraType);
-        virtual void CopyRenderToTarget(int cameraType);
+        virtual void TraceRays();
 #pragma endregion RayTracerAPI
 
 
@@ -179,8 +178,7 @@ namespace PixelsForGlory::Vulkan
         
         bool alreadyPrepared_;
 
-        // Camera.cameraType => target
-        std::map<int, std::unique_ptr<RayTracerRenderTarget>> renderTargets_;
+        RayTracerRenderTarget renderTarget_;
 
 #pragma region SharedMeshMembers
 
@@ -281,7 +279,9 @@ namespace PixelsForGlory::Vulkan
         /// <summary>
         /// Builds and submits ray tracing commands
         /// </summary>
-        void BuildAndSubmitRayTracingCommandBuffer(int cameraType);
+        void BuildAndSubmitRayTracingCommandBuffer(VkCommandBuffer commandBuffer);
+
+        void CopyRenderToRenderTarget(VkCommandBuffer commandBuffer);
 
         /// <summary>
         /// Builds descriptor buffer infos for descriptor sets

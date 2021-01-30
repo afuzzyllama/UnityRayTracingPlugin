@@ -2,116 +2,102 @@ using UnityEngine;
 using UnityEngine.Rendering;
 
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 public class RayTracingCameraRenderer
 {
-    ScriptableRenderContext _context;
-    Camera _camera;
+    private ScriptableRenderContext _context;
+    private Camera _camera;
+    private Texture2D _target;
 
-    // Camera.GetInstanceId() => Target Texture2D. Hold one for each active camera
-    // TOOD: How to remove camera that is no longer active?
-    Dictionary<CameraType, Texture2D> _targets = new Dictionary<CameraType, Texture2D>();
+    private CommandBuffer _commandBuffer = new CommandBuffer()
+    {
+        name = "Ray Tracing Camera Render"    
+    };
 
     public void Render(ScriptableRenderContext context, Camera camera)
     {
         _context = context;
         _camera = camera;
 
-        if(Setup())
+        if (!Setup())
         {
-            RayTrace();
-            Submit();
+            return;
         }
 
+        RayTrace();
     }
 
     private bool Setup()
     {
-        _context.SetupCameraProperties(_camera);
+        var camPosHandle = GCHandle.Alloc(_camera.transform.position, GCHandleType.Pinned);
+        var camDirHandle = GCHandle.Alloc(_camera.transform.forward, GCHandleType.Pinned);
+        var camUpHandle = GCHandle.Alloc(_camera.transform.up, GCHandleType.Pinned);
+        var camSideHandle = GCHandle.Alloc(_camera.transform.right, GCHandleType.Pinned);
+        var camNearFarFovHandle = GCHandle.Alloc(new Vector3(_camera.nearClipPlane, _camera.farClipPlane, _camera.fieldOfView), GCHandleType.Pinned);
+        PixelsForGlory.RayTracingPlugin.UpdateCamera(camPosHandle.AddrOfPinnedObject(),
+                                                     camDirHandle.AddrOfPinnedObject(),
+                                                     camUpHandle.AddrOfPinnedObject(),
+                                                     camSideHandle.AddrOfPinnedObject(),
+                                                     camNearFarFovHandle.AddrOfPinnedObject());
+        camPosHandle.Free();
+        camDirHandle.Free();
+        camUpHandle.Free();
+        camSideHandle.Free();
+        camNearFarFovHandle.Free();
 
-        // If this camera type hasn't been handled, make an entry
-        if (!_targets.ContainsKey(_camera.cameraType))
-        { 
-            _targets[_camera.cameraType] = null;
+        // TODO: PLAN OF ATTACK
+        //  - pass target to plugin, set descriptor set and render target for currentFrameNumber
+        //  - when tracing is complete, free descriptor set and copy output to render target
+
+        int width;
+        int height;
+        if(_camera.activeTexture == null)
+        {
+            width = Screen.width;
+            height = Screen.height;
+        }
+        else
+        {
+            width = _camera.activeTexture.width;
+            height = _camera.activeTexture.height;
         }
 
-        if(_camera.cameraType != CameraType.Game && _camera.cameraType != CameraType.SceneView)
+        _target = new Texture2D(width, height, TextureFormat.RGBA32, false)
         {
+            // Set point filtering just so we can see the pixels clearly
+            filterMode = FilterMode.Point
+        };
+
+        // Call Apply() so it's actually uploaded to the GPU
+        _target.Apply();
+
+        if (PixelsForGlory.RayTracingPlugin.SetRenderTarget((int)_target.format, _target.width, _target.height, _target.GetNativeTexturePtr()) == 0)
+        {
+            Debug.Log("Something went wrong with setting render target");
             return false;
         }
 
-        // TODO: This is actually pretty terrible for editor performance with mulitple scene views.
-        //       If there are multiple scene views of different sizes, it will recreate the target texture every frame for the editor
-        if(_targets[_camera.cameraType] == null || RebuildTargetTexture())
-        {
-            int newWidth = 0;
-            int newHeight = 0;
-            // Get a render target for Ray Tracing
-            if (_camera.cameraType == CameraType.SceneView)
-            {
-                newWidth = _camera.targetTexture.width;
-                newHeight = _camera.targetTexture.height;
-            }
-            else if (_camera.cameraType == CameraType.Game)
-            {
-                newWidth = Screen.width;
-                newHeight = Screen.height;
-            }
-
-            _targets[_camera.cameraType] = new Texture2D(newWidth, newHeight, TextureFormat.RGBA32, false)
-            {
-                // Set point filtering just so we can see the pixels clearly
-                filterMode = FilterMode.Point
-            };
-
-            // Call Apply() so it's actually uploaded to the GPU
-            _targets[_camera.cameraType].Apply();
-
-            if(PixelsForGlory.RayTracingPlugin.SetRenderTarget((int)_camera.cameraType,
-                                                                   (int)_targets[_camera.cameraType].format,
-                                                                   _targets[_camera.cameraType].width,
-                                                                   _targets[_camera.cameraType].height,
-                                                                   _targets[_camera.cameraType].GetNativeTexturePtr()) == 0)
-            {
-                // Set this to null to ensure it will fail again next pass
-                _targets[_camera.cameraType] = null;
-            }
-
-        }
-
-        
-        // If we got here, we are successful
         return true;
-    }
-
-    private bool RebuildTargetTexture()
-    {
-        if(_camera.cameraType == CameraType.SceneView)
-        {
-            if(_targets[_camera.cameraType].width != _camera.targetTexture.width || _targets[_camera.cameraType].height != _camera.targetTexture.height)
-            {
-                return true;
-            }
-        }
-        else if(_camera.cameraType == CameraType.Game)
-        {
-            if (_targets[_camera.cameraType].width != Screen.width || _targets[_camera.cameraType].height != Screen.height)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private void RayTrace()
     {
-        // Issue the ray trace and execute the command buffer right away
-        GL.IssuePluginEvent(PixelsForGlory.RayTracingPlugin.GetRenderEventFunc(), (int)_camera.cameraType);
-    }
+        _commandBuffer.Clear();
 
-    private void Submit()
-    {
-        Graphics.Blit(_targets[_camera.cameraType], _camera.targetTexture);
+        var cameraTextureId = new RenderTargetIdentifier(_camera.targetTexture);
+
+        string sampleName = "Trace rays";
+        _commandBuffer.BeginSample(sampleName);
+        _commandBuffer.IssuePluginEvent(PixelsForGlory.RayTracingPlugin.GetRenderEventFunc(), 1);
+        _commandBuffer.Blit(_target, cameraTextureId);
+        _commandBuffer.EndSample(sampleName);
+
+        _context.ExecuteCommandBuffer(_commandBuffer);
+        _context.Submit();
+
+        _commandBuffer.Clear();
+
+ 
     }
 }

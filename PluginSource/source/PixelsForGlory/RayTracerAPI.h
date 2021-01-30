@@ -29,7 +29,7 @@ namespace PixelsForGlory
         /// <param name="height"></param>
         /// <param name="textureHandle">Destination texture for render</param>
         /// <returns>1 if successful, 0 otherwise</returns>
-        virtual int SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, void* textureHandle) = 0;
+        virtual int SetRenderTarget(int unityTextureFormat, int width, int height, void* textureHandle) = 0;
 
         /// <summary>
         /// Process general event like initialization, shutdown, device loss/reset etc.
@@ -115,13 +115,7 @@ namespace PixelsForGlory
         /// <summary>
         /// Ray those rays!
         /// </summary>
-        virtual void TraceRays(int cameraType) = 0;
-
-        /// <summary>
-        /// Copy an image to a Unity3d texture for display
-        /// </summary>
-        /// <param name="TextureHandle"></param>
-        virtual void CopyRenderToTarget(int cameraType) = 0;
+        virtual void TraceRays() = 0;
     };
 
     // Create a graphics API implementation instance for the given API type.

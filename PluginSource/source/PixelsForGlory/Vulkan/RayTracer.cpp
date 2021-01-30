@@ -105,7 +105,7 @@ namespace PixelsForGlory::Vulkan
         const char* layerName = "VK_LAYER_KHRONOS_validation";
 
         // TODO: debug flag
-        if (/*_debug*/ false) {
+        if (/*_debug*/ true) {
             createInfo.enabledLayerCount = 1;
             createInfo.ppEnabledLayerNames = &layerName;
 
@@ -133,7 +133,7 @@ namespace PixelsForGlory::Vulkan
             VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
             VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME,
 
-            /*VK_EXT_DEBUG_UTILS_EXTENSION_NAME*/ // Enable when debugging of Vulkan is needed
+            VK_EXT_DEBUG_UTILS_EXTENSION_NAME  // Enable when debugging of Vulkan is needed
         };
 
         createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
@@ -302,6 +302,7 @@ namespace PixelsForGlory::Vulkan
         , sceneBufferInfo_(VkDescriptorBufferInfo())
         , pipelineLayout_(VK_NULL_HANDLE)
         , pipeline_(VK_NULL_HANDLE)
+        , debugMessenger_(VK_NULL_HANDLE)
     {}
 
     void RayTracer::InitializeFromUnityInstance(IUnityGraphicsVulkan* graphicsInterface)
@@ -316,6 +317,12 @@ namespace PixelsForGlory::Vulkan
 
     void RayTracer::Shutdown()
     {
+        if (debugMessenger_ != VK_NULL_HANDLE)
+        {
+            vkDestroyDebugUtilsMessengerEXT(graphicsInterface_->Instance().instance, debugMessenger_, nullptr);
+            debugMessenger_ = VK_NULL_HANDLE;
+        }
+
         if (graphicsCommandPool_ != VK_NULL_HANDLE)
         {
             vkDestroyCommandPool(device_, graphicsCommandPool_, nullptr);
@@ -328,11 +335,7 @@ namespace PixelsForGlory::Vulkan
             transferCommandPool_ = VK_NULL_HANDLE;
         }
 
-        for (auto const& itr : renderTargets_)
-        {
-            auto target = itr.second.get();
-            target->image.Destroy();
-        }
+        renderTarget_.stagingImage.Destroy();
 
         for (auto itr = sharedMeshesPool_.pool_begin(); itr != sharedMeshesPool_.pool_end(); ++itr)
         {
@@ -475,80 +478,58 @@ namespace PixelsForGlory::Vulkan
         PFG_EDITORLOG("Shader folder set to: " + shaderFolder_)
     }
 
-    int RayTracer::SetRenderTarget(int cameraType, int unityTextureFormat, int width, int height, void* textureHandle)
+    int RayTracer::SetRenderTarget(int unityTextureFormat, int width, int height, void* textureHandle)
     {
+        graphicsInterface_->EnsureOutsideRenderPass();
+
         VkFormat vkFormat;
         switch (unityTextureFormat)
         {
+        
+            //// RenderTextureFormat.ARGB32
+        //case 0:
+        //    vkFormat = VK_FORMAT_R8G8B8A8_UNORM;
+        //    break;
+        
         // TextureFormat.RGBA32
         case 4:
             vkFormat = VK_FORMAT_R8G8B8A8_UNORM;
             break;
+        
         default:
             PFG_EDITORLOGERROR("Attempted to set an unsupported Unity texture format" + std::to_string(unityTextureFormat))
             return 0;
         }
 
-        // If the target already exists, make sure to destroy it first
-        bool insert = false;
-        if (renderTargets_.find(cameraType) != renderTargets_.end())
-        {
-            renderTargets_[cameraType]->image.Destroy();
-        }
-        else
-        {
-            renderTargets_.insert(std::make_pair(cameraType, std::make_unique<RayTracerRenderTarget>()));
-            insert = true;
-        }
-
-        auto& target = renderTargets_[cameraType];
-        target->format = vkFormat;
-        target->extent.width = width;
-        target->extent.height = height;
-        target->extent.depth = 1;
-        target->destination = textureHandle;
-
-        target->image = Vulkan::Image(device_, physicalDeviceMemoryProperties_);
+        renderTarget_.format = vkFormat;
+        renderTarget_.extent.width = width;
+        renderTarget_.extent.height = height;
+        renderTarget_.extent.depth = 1;
+        renderTarget_.destination = textureHandle;
         
-        if(target->image.Create(
+        renderTarget_.stagingImage = Vulkan::Image(device_, physicalDeviceMemoryProperties_);
+
+        if (renderTarget_.stagingImage.Create(
             VK_IMAGE_TYPE_2D,
-            target->format,
-            target->extent,
+            renderTarget_.format,
+            renderTarget_.extent,
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != VK_SUCCESS) {
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != VK_SUCCESS) 
+        {
 
             PFG_EDITORLOGERROR("Failed to create render image!")
-            renderTargets_[cameraType]->image.Destroy();
-            renderTargets_[cameraType] = nullptr;
+            renderTarget_.stagingImage.Destroy();
             return 0;
         }
 
         VkImageSubresourceRange range = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-        if (target->image.CreateImageView(VK_IMAGE_VIEW_TYPE_2D, target->format, range) != VK_SUCCESS) {
+        if(renderTarget_.stagingImage.CreateImageView(VK_IMAGE_VIEW_TYPE_2D, renderTarget_.format, range) != VK_SUCCESS) {
             PFG_EDITORLOGERROR("Failed to create render image view!")
-            renderTargets_[cameraType]->image.Destroy();
-            renderTargets_[cameraType] = nullptr;
+            renderTarget_.stagingImage.Destroy();
             return 0;
         }
 
-        // Make into a storage image
-        VkCommandBuffer commandBuffer;
-        CreateWorkerCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, graphicsCommandPool_, commandBuffer);
-        Vulkan::Image::UpdateImageBarrier(
-            commandBuffer, 
-            target->image.GetImage(), 
-            range, 
-            0, VK_ACCESS_SHADER_WRITE_BIT, 
-            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-        SubmitWorkerCommandBuffer(commandBuffer, graphicsCommandPool_, graphicsQueue_);
-
-        // Only display on creation
-        if(insert)
-        { 
-            PFG_EDITORLOG("Successfully set render target for camera: " + std::to_string(cameraType))
-        }
-        
         // Make sure descriptor sets are updated if a new render target has been created
         updateDescriptorSetsData_ = true;
 
@@ -998,9 +979,6 @@ namespace PixelsForGlory::Vulkan
         {
             return;
         }
-        // Create dummy render targets before they come from the engine to prevent crashes
-        SetRenderTarget(1, 4, 800, 600, nullptr);
-        SetRenderTarget(2, 4, 800, 600, nullptr);
 
         CreateDescriptorSetsLayouts();
         CreateDescriptorPool();
@@ -1074,11 +1052,11 @@ namespace PixelsForGlory::Vulkan
         sceneData_.Unmap();
     }
 
-    void RayTracer::TraceRays(int cameraType)
+    void RayTracer::TraceRays()
     {
         if (tlas_.accelerationStructure == VK_NULL_HANDLE)
         {
-            // We don't have a tlas, so we cannot trace rays!
+            PFG_EDITORLOG("We don't have a tlas, so we cannot trace rays!")
             return;
         }
 
@@ -1087,6 +1065,7 @@ namespace PixelsForGlory::Vulkan
             CreatePipelineLayout();
             if (pipelineLayout_ == VK_NULL_HANDLE)
             {
+                PFG_EDITORLOG("Something went wrong with creating the pipeline layout")
                 // Something went wrong, don't continue
                 return;
             }
@@ -1097,6 +1076,7 @@ namespace PixelsForGlory::Vulkan
             CreatePipeline();
             if (pipeline_ == VK_NULL_HANDLE)
             {
+                PFG_EDITORLOG("Something went wrong with creating the pipeline")
                 return;
             }
         }
@@ -1105,95 +1085,19 @@ namespace PixelsForGlory::Vulkan
         {
             BuildDescriptorBufferInfos();
             UpdateDescriptorSets();
-            BuildAndSubmitRayTracingCommandBuffer(cameraType);
+
+            // cannot manage resources inside renderpass
+            graphicsInterface_->EnsureOutsideRenderPass();
+
+            UnityVulkanRecordingState recordingState;
+            if (!graphicsInterface_->CommandRecordingState(&recordingState, kUnityVulkanGraphicsQueueAccess_DontCare))
+            {
+                return;
+            }
+
+            BuildAndSubmitRayTracingCommandBuffer(recordingState.commandBuffer);
+            CopyRenderToRenderTarget(recordingState.commandBuffer);
         }
-    }
-
-    void RayTracer::CopyRenderToTarget(int cameraType) 
-    {
-        // cannot manage resources inside renderpass
-        graphicsInterface_->EnsureOutsideRenderPass();
-            
-        auto& target = renderTargets_[cameraType];
-
-        if (target->destination == nullptr)
-        {
-            // No where to copy, bail out!
-            return;
-        }
-
-        UnityVulkanImage image;
-        if (!graphicsInterface_->AccessTexture(target->destination,
-                                                UnityVulkanWholeImage,
-                                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                                VK_ACCESS_TRANSFER_WRITE_BIT,
-                                                kUnityVulkanResourceAccess_PipelineBarrier,
-                                                &image))
-        {
-            return;
-        }
-            
-        UnityVulkanRecordingState recordingState;
-        if (!graphicsInterface_->CommandRecordingState(&recordingState, kUnityVulkanGraphicsQueueAccess_DontCare))
-        {
-            return;
-        }
-            
-        VkImageSubresourceRange range = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-
-        VkImageCopy region;
-        region.extent.width = target->extent.width;
-        region.extent.height = target->extent.height;
-        region.extent.depth = 1;
-        region.srcOffset.x = 0;
-        region.srcOffset.y = 0;
-        region.srcOffset.z = 0;
-        region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        region.srcSubresource.baseArrayLayer = 0;
-        region.srcSubresource.layerCount = 1;
-        region.srcSubresource.mipLevel = 0;
-        region.dstOffset.x = 0;
-        region.dstOffset.y = 0;
-        region.dstOffset.z = 0;
-        region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        region.dstSubresource.baseArrayLayer = 0;
-        region.dstSubresource.layerCount = 1;
-        region.dstSubresource.mipLevel = 0;
-        
-        // Assign target image to be transfer optimal
-        Vulkan::Image::UpdateImageBarrier(
-            recordingState.commandBuffer, 
-            target->image.GetImage(), 
-            range, 
-            VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, 
-            VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    
-        // BUG? Unity destination is not set to the correct layout, do it here
-        Vulkan::Image::UpdateImageBarrier(
-            recordingState.commandBuffer,
-            image.image,
-            range,
-            VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-        vkCmdCopyImage(recordingState.commandBuffer, target->image.GetImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-        // Revert target image 
-        Vulkan::Image::UpdateImageBarrier(
-            recordingState.commandBuffer, 
-            target->image.GetImage(), 
-            range, 
-            VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT,
-            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
-
-        // BUG? Unity destination is not set to the correct layout, revert
-        Vulkan::Image::UpdateImageBarrier(
-            recordingState.commandBuffer,
-            image.image,
-            range,
-            VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
 
 #pragma endregion RayTracerAPI
@@ -1250,6 +1154,11 @@ namespace PixelsForGlory::Vulkan
     
         // Submit to the queue
         VkResult result = vkQueueSubmit(queue, 1, &submitInfo, fence);
+        if (result == VK_ERROR_DEVICE_LOST)
+        {
+
+        }
+
         VK_CHECK("vkQueueSubmit", result)
     
         // Wait for the fence to signal that command buffer has finished executing
@@ -1444,32 +1353,20 @@ namespace PixelsForGlory::Vulkan
         }
 
         // Set 1
-        // binding 0 -> game render target 
-        // binding 1 -> scene render target 
+        // binding 0 -> render target 
         {
-            VkDescriptorSetLayoutBinding gameImageLayoutBinding;
-            gameImageLayoutBinding.binding = DESCRIPTOR_BINDING_RENDER_TARGETS_GAME;
-            gameImageLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-            gameImageLayoutBinding.descriptorCount = 1;
-            gameImageLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
-
-            VkDescriptorSetLayoutBinding sceneImageLayoutBinding;
-            sceneImageLayoutBinding.binding = DESCRIPTOR_BINDING_RENDER_TARGETS_SCENE;
-            sceneImageLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-            sceneImageLayoutBinding.descriptorCount = 1;
-            sceneImageLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
-
-            std::vector<VkDescriptorSetLayoutBinding> bindings({
-                gameImageLayoutBinding,
-                sceneImageLayoutBinding,
-            });
+            VkDescriptorSetLayoutBinding imageLayoutBinding;
+            imageLayoutBinding.binding = DESCRIPTOR_BINDING_RENDER_TARGET;
+            imageLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            imageLayoutBinding.descriptorCount = 1;
+            imageLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
 
             VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
             descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-            descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-            descriptorSetLayoutCreateInfo.pBindings = bindings.data();
+            descriptorSetLayoutCreateInfo.bindingCount = 1;
+            descriptorSetLayoutCreateInfo.pBindings = &imageLayoutBinding;
 
-            VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_RENDER_TARGETS]))
+            VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_RENDER_TARGET]))
         }
 
         // set 2
@@ -1580,13 +1477,8 @@ namespace PixelsForGlory::Vulkan
         shaderBindingTable_.CreateSBT(device_, physicalDeviceMemoryProperties_, pipeline_);
     }
 
-    void RayTracer::BuildAndSubmitRayTracingCommandBuffer(int cameraType)
+    void RayTracer::BuildAndSubmitRayTracingCommandBuffer(VkCommandBuffer commandBuffer)
     {
-        graphicsInterface_->EnsureOutsideRenderPass();
-
-        /*VkCommandBuffer commandBuffer;
-        CreateWorkerCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, graphicsCommandPool_, commandBuffer);*/
-
         UnityVulkanRecordingState recordingState;
         if (!graphicsInterface_->CommandRecordingState(&recordingState, kUnityVulkanGraphicsQueueAccess_DontCare))
         {
@@ -1626,17 +1518,102 @@ namespace PixelsForGlory::Vulkan
         vkCmdBindPipeline(recordingState.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline_);
         vkCmdBindDescriptorSets(recordingState.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout_, 0, static_cast<uint32_t>(descriptorSets_.size()), descriptorSets_.data(), 0, 0);
 
+        // Make into a storage image
+        VkImageSubresourceRange range = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+        Vulkan::Image::UpdateImageBarrier(
+            recordingState.commandBuffer,
+            renderTarget_.stagingImage.GetImage(),
+            range,
+            0, VK_ACCESS_SHADER_WRITE_BIT,
+            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+
         vkCmdTraceRaysKHR(
             recordingState.commandBuffer,
             &raygenShaderEntry,
             &missShaderEntry,
             &hitShaderEntry,
             &callableShaderEntry,
-            renderTargets_[cameraType]->extent.width,
-            renderTargets_[cameraType]->extent.height,
-            1);
+            renderTarget_.extent.width,
+            renderTarget_.extent.height,
+            renderTarget_.extent.depth);
 
         //SubmitWorkerCommandBuffer(commandBuffer, graphicsCommandPool_, graphicsQueue_);
+    }
+
+    void RayTracer::CopyRenderToRenderTarget(VkCommandBuffer commandBuffer)
+    {
+        UnityVulkanImage image;
+        if (!graphicsInterface_->AccessTexture(renderTarget_.destination,
+            UnityVulkanWholeImage,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_ACCESS_TRANSFER_WRITE_BIT,
+            kUnityVulkanResourceAccess_PipelineBarrier,
+            &image))
+        {
+            return;
+        }
+
+        UnityVulkanRecordingState recordingState;
+        if (!graphicsInterface_->CommandRecordingState(&recordingState, kUnityVulkanGraphicsQueueAccess_DontCare))
+        {
+            return;
+        }
+
+        VkImageSubresourceRange range = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+        VkImageCopy region;
+        region.extent.width = renderTarget_.extent.width;
+        region.extent.height = renderTarget_.extent.height;
+        region.extent.depth = 1;
+        region.srcOffset.x = 0;
+        region.srcOffset.y = 0;
+        region.srcOffset.z = 0;
+        region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.srcSubresource.baseArrayLayer = 0;
+        region.srcSubresource.layerCount = 1;
+        region.srcSubresource.mipLevel = 0;
+        region.dstOffset.x = 0;
+        region.dstOffset.y = 0;
+        region.dstOffset.z = 0;
+        region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.dstSubresource.baseArrayLayer = 0;
+        region.dstSubresource.layerCount = 1;
+        region.dstSubresource.mipLevel = 0;
+
+        // Assign target image to be transfer optimal
+        Vulkan::Image::UpdateImageBarrier(
+            recordingState.commandBuffer,
+            renderTarget_.stagingImage.GetImage(),
+            range,
+            VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+            VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+        // BUG? Unity destination is not set to the correct layout, do it here
+        Vulkan::Image::UpdateImageBarrier(
+            recordingState.commandBuffer,
+            image.image,
+            range,
+            VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        vkCmdCopyImage(recordingState.commandBuffer, renderTarget_.stagingImage.GetImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+        // Revert target image 
+        Vulkan::Image::UpdateImageBarrier(
+            recordingState.commandBuffer,
+            renderTarget_.stagingImage.GetImage(),
+            range,
+            VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+
+        // BUG? Unity destination is not set to the correct layout, revert
+        Vulkan::Image::UpdateImageBarrier(
+            recordingState.commandBuffer,
+            image.image,
+            range,
+            VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
 
     void RayTracer::BuildDescriptorBufferInfos()
@@ -1804,19 +1781,19 @@ namespace PixelsForGlory::Vulkan
         // Set 1
         // Declared outside of scope so it isn't destroyed before write
         {
-            // Game render target
+            // Render target
             {
                 // From renderTargets_ map, Game = 1
                 VkDescriptorImageInfo descriptorRenderTargetGameImageInfo;
                 descriptorRenderTargetGameImageInfo.sampler = VK_NULL_HANDLE;
-                descriptorRenderTargetGameImageInfo.imageView = renderTargets_[1]->image.GetImageView();
+                descriptorRenderTargetGameImageInfo.imageView = renderTarget_.stagingImage.GetImageView();
                 descriptorRenderTargetGameImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
                 VkWriteDescriptorSet renderTargetGameImageWrite;
                 renderTargetGameImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 renderTargetGameImageWrite.pNext = nullptr;
-                renderTargetGameImageWrite.dstSet = descriptorSets_[DESCRIPTOR_SET_RENDER_TARGETS];
-                renderTargetGameImageWrite.dstBinding = DESCRIPTOR_BINDING_RENDER_TARGETS_GAME;
+                renderTargetGameImageWrite.dstSet = descriptorSets_[DESCRIPTOR_SET_RENDER_TARGET];
+                renderTargetGameImageWrite.dstBinding = DESCRIPTOR_BINDING_RENDER_TARGET;
                 renderTargetGameImageWrite.dstArrayElement = 0;
                 renderTargetGameImageWrite.descriptorCount = 1;
                 renderTargetGameImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
@@ -1825,29 +1802,6 @@ namespace PixelsForGlory::Vulkan
                 renderTargetGameImageWrite.pTexelBufferView = nullptr;
 
                 descriptorWrites.push_back(renderTargetGameImageWrite);
-            }
-
-            // Game render target
-            {
-                // From renderTargets_ map, SceneView = 2
-                VkDescriptorImageInfo descriptorRenderTargetSceneImageInfo;
-                descriptorRenderTargetSceneImageInfo.sampler = VK_NULL_HANDLE;
-                descriptorRenderTargetSceneImageInfo.imageView = renderTargets_[2]->image.GetImageView();
-                descriptorRenderTargetSceneImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-                VkWriteDescriptorSet renderTargetSceneImageWrite;
-                renderTargetSceneImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-                renderTargetSceneImageWrite.pNext = nullptr;
-                renderTargetSceneImageWrite.dstSet = descriptorSets_[DESCRIPTOR_SET_RENDER_TARGETS];
-                renderTargetSceneImageWrite.dstBinding = DESCRIPTOR_BINDING_RENDER_TARGETS_SCENE;
-                renderTargetSceneImageWrite.dstArrayElement = 0;
-                renderTargetSceneImageWrite.descriptorCount = 1;
-                renderTargetSceneImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-                renderTargetSceneImageWrite.pImageInfo = &descriptorRenderTargetSceneImageInfo;
-                renderTargetSceneImageWrite.pBufferInfo = nullptr;
-                renderTargetSceneImageWrite.pTexelBufferView = nullptr;
-
-                descriptorWrites.push_back(renderTargetSceneImageWrite);
             }
         }
        
@@ -1893,7 +1847,7 @@ namespace PixelsForGlory::Vulkan
         // Make sure unnecessary updates aren't made
         updateDescriptorSetsData_ = false;
 
-        PFG_EDITORLOG("Successfully updated descriptor sets")
+        //PFG_EDITORLOG("Successfully updated descriptor sets")
     }
 
 }

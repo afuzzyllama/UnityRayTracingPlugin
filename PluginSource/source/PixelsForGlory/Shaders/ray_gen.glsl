@@ -6,8 +6,7 @@
 
 layout(set = DESCRIPTOR_SET_ACCELERATION_STRUCTURE, binding = DESCRIPTOR_BINDING_ACCELERATION_STRUCTURE)        uniform accelerationStructureEXT Scene;
 
-layout(set = DESCRIPTOR_SET_RENDER_TARGETS,         binding = DESCRIPTOR_BINDING_RENDER_TARGETS_GAME, rgba8)    uniform image2D GameRenderTarget;
-layout(set = DESCRIPTOR_SET_RENDER_TARGETS,         binding = DESCRIPTOR_BINDING_RENDER_TARGETS_SCENE, rgba8)   uniform image2D SceneRenderTarget;
+layout(set = DESCRIPTOR_SET_RENDER_TARGET,         binding = DESCRIPTOR_BINDING_RENDER_TARGET, rgba8)    uniform image2D RenderTarget;
 
 layout(set = DESCRIPTOR_SET_SCENE_DATA,             binding = DESCRIPTOR_BINDING_SCENE_DATA, std140)            uniform SceneData {
     ShaderSceneParam SceneParams;
@@ -498,8 +497,6 @@ void main() {
     vec3 finalColor = TraceRay();
 
     // Return result to image      
-    // TODO: We don't need to write to both!
-    imageStore(GameRenderTarget, ivec2(gl_LaunchIDEXT.xy), vec4(finalColor, 1.0f));
-    imageStore(SceneRenderTarget, ivec2(gl_LaunchIDEXT.xy), vec4(finalColor, 1.0f));               
+    imageStore(RenderTarget, ivec2(gl_LaunchIDEXT.xy), vec4(finalColor, 1.0f));
 
 }

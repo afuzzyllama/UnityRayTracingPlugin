@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace PixelsForGlory
 {
-    public static class RayTracingPlugin
+    internal static class RayTracingPlugin
     {
         [DllImport("RayTracingPlugin")]
         public static extern void SetTimeFromUnity(float t);
@@ -14,7 +14,7 @@ namespace PixelsForGlory
         public static extern int SetShaderFolder(string shaderFolder);
 
         [DllImport("RayTracingPlugin")]
-        public static extern int SetRenderTarget(int cameraObjectIstanceId, int unityTextureFormat, int width, int height, IntPtr destination);
+        public static extern int SetRenderTarget(int unityTextureFormat, int width, int height, IntPtr destination);
 
         [DllImport("RayTracingPlugin")]
         public static extern void SetTargetTexture(IntPtr texture, int width, int height);

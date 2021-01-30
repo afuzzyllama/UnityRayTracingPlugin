@@ -102,14 +102,12 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
     }
 }
 
-static void UNITY_INTERFACE_API OnRenderEvent(int cameraType)
+static void UNITY_INTERFACE_API OnRenderEvent(int eventId)
 {
     // Unknown / unsupported graphics device type? Do nothing
     PLUGIN_CHECK()
 
-    // EventID is the camera id?
-    s_CurrentAPI->TraceRays(cameraType);
-    s_CurrentAPI->CopyRenderToTarget(cameraType);
+    s_CurrentAPI->TraceRays();
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetShaderFolder(const char* shaderFolder)
@@ -119,11 +117,11 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetShaderFolder(const
     s_CurrentAPI->SetShaderFolder(std::string(shaderFolder));
 }
 
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, void* textureHandle)
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetRenderTarget(int unityTextureFormat, int width, int height, void* textureHandle)
 {
     PLUGIN_CHECK_RETURN(0)
 
-    return s_CurrentAPI->SetRenderTarget(cameraInstanceId, unityTextureFormat, width, height, textureHandle);
+    return s_CurrentAPI->SetRenderTarget( unityTextureFormat, width, height, textureHandle);
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetSharedMeshIndex(int sharedMeshInstanceId)
