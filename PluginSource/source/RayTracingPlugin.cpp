@@ -1,4 +1,3 @@
-// Example low level rendering Unity plugin
 #include "PlatformBase.h"
 #include "PixelsForGlory/RayTracerAPI.h"
 
