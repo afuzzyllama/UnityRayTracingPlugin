@@ -1,5 +1,5 @@
 # Unity Ray Tracing Plugin
-Native plugin for Unity3d that replaces the renderer with a hardware accelerated ray tracer.
+Proof of concept native plugin for Unity3d that replaces the renderer with a hardware accelerated ray tracer.
 
 Heavily influenced by:
 - [rtxOn](https://github.com/iOrange/rtxON)
