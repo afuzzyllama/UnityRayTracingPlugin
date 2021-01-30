@@ -62,7 +62,7 @@ namespace PixelsForGlory::Vulkan
         PixelsForGlory::Vulkan::RayTracer::Instance().graphicsQueueFamilyIndex_ = queuesIndices[0];
         PixelsForGlory::Vulkan::RayTracer::Instance().transferQueueFamilyIndex_ = queuesIndices[1];
 
-        PFG_EDITORLOG("Queues indices successfully reoslved")
+        PFG_EDITORLOG("Queues indices successfully reoslved");
 
         // Get the ray tracing pipeline properties, which we'll need later on in the sample
         PixelsForGlory::Vulkan::RayTracer::Instance().rayTracingProperties_.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
@@ -71,7 +71,7 @@ namespace PixelsForGlory::Vulkan
         physicalDeviceProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
         physicalDeviceProperties.pNext = &PixelsForGlory::Vulkan::RayTracer::Instance().rayTracingProperties_;
 
-        PFG_EDITORLOG("Getting physical device properties")
+        PFG_EDITORLOG("Getting physical device properties");
         vkGetPhysicalDeviceProperties2(physicalDevice, &physicalDeviceProperties);
 
         // Get memory properties
@@ -141,7 +141,7 @@ namespace PixelsForGlory::Vulkan
 
         vkCreateInstance = (PFN_vkCreateInstance)vkGetInstanceProcAddr(VK_NULL_HANDLE, "vkCreateInstance");
         VkResult result = vkCreateInstance(&createInfo, unityAllocator, instance);
-        VK_CHECK("vkCreateInstance", result)
+        VK_CHECK("vkCreateInstance", result);
 
         if (result == VK_SUCCESS)
         {
@@ -153,7 +153,7 @@ namespace PixelsForGlory::Vulkan
         //if (/*_debug*/ true) {
         //    if (CreateDebugUtilsMessengerEXT(*instance, &debugCreateInfo, nullptr, &PixelsForGlory::Vulkan::RayTracer::Instance().debugMessenger_) != VK_SUCCESS) 
         //    {
-        //        PFG_EDITORLOGERROR("failed to set up debug messenger!")
+        //        PFG_EDITORLOGERROR("failed to set up debug messenger!");
         //    }
         //}
 
@@ -242,7 +242,7 @@ namespace PixelsForGlory::Vulkan
         };
 
         for (auto const& ext : requiredExtensions) {
-            PFG_EDITORLOG("Enabling extension: " + std::string(ext))
+            PFG_EDITORLOG("Enabling extension: " + std::string(ext));
         }
 
         VkDeviceCreateInfo deviceCreateInfo;
@@ -266,7 +266,7 @@ namespace PixelsForGlory::Vulkan
 
 
         // get our queues handles with our new logical device!
-        PFG_EDITORLOG("Getting device queues")
+        PFG_EDITORLOG("Getting device queues");
         vkGetDeviceQueue(*device, PixelsForGlory::Vulkan::RayTracer::Instance().graphicsQueueFamilyIndex_, 0, &PixelsForGlory::Vulkan::RayTracer::Instance().graphicsQueue_);
         vkGetDeviceQueue(*device, PixelsForGlory::Vulkan::RayTracer::Instance().transferQueueFamilyIndex_, 0, &PixelsForGlory::Vulkan::RayTracer::Instance().transferQueue_);
 
@@ -297,8 +297,6 @@ namespace PixelsForGlory::Vulkan
         , updateTlas_(false)
         , tlas_(RayTracerAccelerationStructure())
         , descriptorPool_(VK_NULL_HANDLE)
-        , updateDescriptorSetsData_(true)
-        , cameraBufferInfo_(VkDescriptorBufferInfo())
         , sceneBufferInfo_(VkDescriptorBufferInfo())
         , pipelineLayout_(VK_NULL_HANDLE)
         , pipeline_(VK_NULL_HANDLE)
@@ -335,7 +333,23 @@ namespace PixelsForGlory::Vulkan
             transferCommandPool_ = VK_NULL_HANDLE;
         }
 
-        renderTarget_.stagingImage.Destroy();
+        for (auto itr = renderTargets_.begin(); itr != renderTargets_.end(); ++itr)
+        {
+            auto& renderTarget = (*itr).second;
+
+            renderTarget->stagingImage.Destroy();
+            renderTarget->cameraData.Destroy();
+
+            if (renderTarget->descriptorSets.size() > 0)
+            {
+                vkFreeDescriptorSets(device_, descriptorPool_, DESCRIPTOR_SET_SIZE, renderTarget->descriptorSets.data());
+            }
+            renderTarget->descriptorSets.clear();
+
+            renderTarget.release();
+        }
+        renderTargets_.clear();
+        
 
         for (auto itr = sharedMeshesPool_.pool_begin(); itr != sharedMeshesPool_.pool_end(); ++itr)
         {
@@ -370,12 +384,6 @@ namespace PixelsForGlory::Vulkan
             vkDestroyAccelerationStructureKHR(device_, tlas_.accelerationStructure, nullptr);
         }
         tlas_.buffer.Destroy();
-
-        if (descriptorSets_.size() > 0)
-        {
-            vkFreeDescriptorSets(device_, descriptorPool_, DESCRIPTOR_SET_SIZE, descriptorSets_.data());
-        }
-        descriptorSets_.clear();
 
         if (descriptorPool_ != VK_NULL_HANDLE) {
             vkDestroyDescriptorPool(device_, descriptorPool_, nullptr);
@@ -475,13 +483,11 @@ namespace PixelsForGlory::Vulkan
             shaderFolder_ = shaderFolder_ + "/";
         }
 
-        PFG_EDITORLOG("Shader folder set to: " + shaderFolder_)
+        PFG_EDITORLOG("Shader folder set to: " + shaderFolder_);
     }
 
-    int RayTracer::SetRenderTarget(int unityTextureFormat, int width, int height, void* textureHandle)
+    int RayTracer::SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, void* textureHandle)
     {
-        graphicsInterface_->EnsureOutsideRenderPass();
-
         VkFormat vkFormat;
         switch (unityTextureFormat)
         {
@@ -497,41 +503,61 @@ namespace PixelsForGlory::Vulkan
             break;
         
         default:
-            PFG_EDITORLOGERROR("Attempted to set an unsupported Unity texture format" + std::to_string(unityTextureFormat))
+            PFG_EDITORLOGERROR("Attempted to set an unsupported Unity texture format" + std::to_string(unityTextureFormat));
             return 0;
         }
 
-        renderTarget_.format = vkFormat;
-        renderTarget_.extent.width = width;
-        renderTarget_.extent.height = height;
-        renderTarget_.extent.depth = 1;
-        renderTarget_.destination = textureHandle;
-        
-        renderTarget_.stagingImage = Vulkan::Image(device_, physicalDeviceMemoryProperties_);
+        if (renderTargets_.find(cameraInstanceId) != renderTargets_.end())
+        {
+            auto& renderTarget = renderTargets_[cameraInstanceId];
+                
+            renderTarget->cameraData.Destroy();
+            renderTarget->stagingImage.Destroy();
+            
+            if (renderTarget->descriptorSets.size() > 0)
+            {
+                vkFreeDescriptorSets(device_, descriptorPool_, static_cast<uint32_t>(renderTarget->descriptorSets.size()), renderTarget->descriptorSets.data());
+            }
 
-        if (renderTarget_.stagingImage.Create(
+            renderTarget.release();
+            renderTargets_.erase(cameraInstanceId);
+        }
+
+        auto renderTarget = std::make_unique<RayTracerRenderTarget>();
+
+        renderTarget->format = vkFormat;
+        renderTarget->extent.width = width;
+        renderTarget->extent.height = height;
+        renderTarget->extent.depth = 1;
+        renderTarget->destination = textureHandle;
+        
+        renderTarget->stagingImage = Vulkan::Image(device_, physicalDeviceMemoryProperties_);
+
+        if (renderTarget->stagingImage.Create(
             VK_IMAGE_TYPE_2D,
-            renderTarget_.format,
-            renderTarget_.extent,
+            renderTarget->format,
+            renderTarget->extent,
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != VK_SUCCESS) 
         {
 
-            PFG_EDITORLOGERROR("Failed to create render image!")
-            renderTarget_.stagingImage.Destroy();
+            PFG_EDITORLOGERROR("Failed to create render image!");
+            renderTarget->stagingImage.Destroy();
             return 0;
         }
 
         VkImageSubresourceRange range = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-        if(renderTarget_.stagingImage.CreateImageView(VK_IMAGE_VIEW_TYPE_2D, renderTarget_.format, range) != VK_SUCCESS) {
-            PFG_EDITORLOGERROR("Failed to create render image view!")
-            renderTarget_.stagingImage.Destroy();
+        if(renderTarget->stagingImage.CreateImageView(VK_IMAGE_VIEW_TYPE_2D, renderTarget->format, range) != VK_SUCCESS) {
+            PFG_EDITORLOGERROR("Failed to create render image view!");
+            renderTarget->stagingImage.Destroy();
             return 0;
         }
 
         // Make sure descriptor sets are updated if a new render target has been created
-        updateDescriptorSetsData_ = true;
+        renderTarget->updateDescriptorSetsData = true;
+
+        renderTargets_.insert(std::make_pair(cameraInstanceId, std::move(renderTarget)));
 
         return 1;
     }
@@ -588,7 +614,7 @@ namespace PixelsForGlory::Vulkan
                 Vulkan::Buffer::kDefaultMemoryPropertyFlags) 
             != VK_SUCCESS)
         {
-            PFG_EDITORLOGERROR("Failed to create vertex buffer for shared mesh instance id " + std::to_string(instanceId))
+            PFG_EDITORLOGERROR("Failed to create vertex buffer for shared mesh instance id " + std::to_string(instanceId));
             success = false;
         }
     
@@ -599,7 +625,7 @@ namespace PixelsForGlory::Vulkan
             VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
             Vulkan::Buffer::kDefaultMemoryPropertyFlags))
         {
-            PFG_EDITORLOGERROR("Failed to create index buffer for shared mesh instance id " + std::to_string(instanceId))
+            PFG_EDITORLOGERROR("Failed to create index buffer for shared mesh instance id " + std::to_string(instanceId));
             success = false;
         }
     
@@ -611,7 +637,7 @@ namespace PixelsForGlory::Vulkan
                 Vulkan::Buffer::kDefaultMemoryPropertyFlags)
             != VK_SUCCESS)
         {
-            PFG_EDITORLOGERROR("Failed to create vertex attribute buffer for shared mesh instance id " + std::to_string(instanceId))
+            PFG_EDITORLOGERROR("Failed to create vertex attribute buffer for shared mesh instance id " + std::to_string(instanceId));
             success = false;
         }
     
@@ -624,7 +650,7 @@ namespace PixelsForGlory::Vulkan
             Vulkan::Buffer::kDefaultMemoryPropertyFlags)
             != VK_SUCCESS)
         {
-            PFG_EDITORLOGERROR("Failed to create face buffer for shared mesh instance id " + std::to_string(instanceId))
+            PFG_EDITORLOGERROR("Failed to create face buffer for shared mesh instance id " + std::to_string(instanceId));
             success = false;
         }
     
@@ -648,8 +674,8 @@ namespace PixelsForGlory::Vulkan
             vertices[i].x = verticesArray[3 * i + 0];
             vertices[i].y = verticesArray[3 * i + 1];
             vertices[i].z = verticesArray[3 * i + 2];
-    
-            //PFG_EDITORLOG("vertex #" + std::to_string(i) + ": " + std::to_string(vertices[i].x) + ", " + std::to_string(vertices[i].y) + ", " + std::to_string(vertices[i].z))
+            
+            //PFG_EDITORLOG("vertex #" + std::to_string(i) + ": " + std::to_string(vertices[i].x) + ", " + std::to_string(vertices[i].y) + ", " + std::to_string(vertices[i].z));
 
             // Build for shader
             vertexAttributes[i].normal.x = normalsArray[3 * i + 0];
@@ -668,7 +694,7 @@ namespace PixelsForGlory::Vulkan
             indices[3 * i + 1] = static_cast<uint32_t>(indicesArray[3 * i + 1]);
             indices[3 * i + 2] = static_cast<uint32_t>(indicesArray[3 * i + 2]);
 
-            //PFG_EDITORLOG("face #" + std::to_string(i) + ": " + std::to_string(indices[3 * i + 0]) + ", " + std::to_string(indices[3 * i + 1]) + ", " + std::to_string(indices[3 * i + 2]))
+            //PFG_EDITORLOG("face #" + std::to_string(i) + ": " + std::to_string(indices[3 * i + 0]) + ", " + std::to_string(indices[3 * i + 1]) + ", " + std::to_string(indices[3 * i + 2]));
 
             // Build for shader
             faces[i].index0 = static_cast<uint32_t>(indicesArray[3 * i + 0]);
@@ -687,7 +713,7 @@ namespace PixelsForGlory::Vulkan
         // Build blas here so we don't have to do it later
         BuildBlas(sharedMeshIndex);
     
-        PFG_EDITORLOG("Added mesh (sharedMeshInstanceId: " + std::to_string(instanceId) + ")")
+        PFG_EDITORLOG("Added mesh (sharedMeshInstanceId: " + std::to_string(instanceId) + ")");
     
         return sharedMeshIndex;
     
@@ -717,7 +743,7 @@ namespace PixelsForGlory::Vulkan
 
         int index = meshInstancePool_.add(std::move(instance));
 
-        PFG_EDITORLOG("Added mesh instance (sharedMeshIndex: " + std::to_string(sharedMeshIndex) + ")")
+        PFG_EDITORLOG("Added mesh instance (sharedMeshIndex: " + std::to_string(sharedMeshIndex) + ")");
 
         // If we added an instance, we need to rebuild the tlas
         rebuildTlas_ = true;
@@ -772,10 +798,10 @@ namespace PixelsForGlory::Vulkan
                     t[2][0], t[2][1], t[2][2], t[2][3]
                 };
 
-                /*PFG_EDITORLOG("Instance transform matrix loop: ")
-                PFG_EDITORLOG(std::to_string(transformMatrix.matrix[0][0]) + ", " + std::to_string(transformMatrix.matrix[0][1]) + ", " + std::to_string(transformMatrix.matrix[0][2]) + ", " + std::to_string(transformMatrix.matrix[0][3]))
-                PFG_EDITORLOG(std::to_string(transformMatrix.matrix[1][0]) + ", " + std::to_string(transformMatrix.matrix[1][1]) + ", " + std::to_string(transformMatrix.matrix[1][2]) + ", " + std::to_string(transformMatrix.matrix[1][3]))
-                PFG_EDITORLOG(std::to_string(transformMatrix.matrix[2][0]) + ", " + std::to_string(transformMatrix.matrix[2][1]) + ", " + std::to_string(transformMatrix.matrix[2][2]) + ", " + std::to_string(transformMatrix.matrix[2][3]))*/
+                /*PFG_EDITORLOG("Instance transform matrix loop: ");
+                PFG_EDITORLOG(std::to_string(transformMatrix.matrix[0][0]) + ", " + std::to_string(transformMatrix.matrix[0][1]) + ", " + std::to_string(transformMatrix.matrix[0][2]) + ", " + std::to_string(transformMatrix.matrix[0][3]));
+                PFG_EDITORLOG(std::to_string(transformMatrix.matrix[1][0]) + ", " + std::to_string(transformMatrix.matrix[1][1]) + ", " + std::to_string(transformMatrix.matrix[1][2]) + ", " + std::to_string(transformMatrix.matrix[1][3]));
+                PFG_EDITORLOG(std::to_string(transformMatrix.matrix[2][0]) + ", " + std::to_string(transformMatrix.matrix[2][1]) + ", " + std::to_string(transformMatrix.matrix[2][2]) + ", " + std::to_string(transformMatrix.matrix[2][3]));*/
 
                 auto sharedMeshIndex = meshInstancePool_[instanceIndex]->sharedMeshIndex;
 
@@ -787,10 +813,10 @@ namespace PixelsForGlory::Vulkan
                 accelerationStructureInstance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
                 accelerationStructureInstance.accelerationStructureReference = sharedMeshesPool_[meshInstancePool_[instanceIndex]->sharedMeshIndex]->blas.deviceAddress;
 
-                /*PFG_EDITORLOG("VkAccelerationStructureInstanceKHR.transform: ")
-                PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[0][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][3]))
-                PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[1][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[1][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[1][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[1][3]))
-                PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[2][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[2][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[2][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[2][3]))*/
+                /*PFG_EDITORLOG("VkAccelerationStructureInstanceKHR.transform: ");
+                PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[0][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][3]));
+                PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[1][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[1][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[1][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[1][3]));
+                PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[2][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[2][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[2][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[2][3]));*/
 
                 // Consumed current index, advance
                 ++instanceAccelerationStructuresIndex;
@@ -811,10 +837,10 @@ namespace PixelsForGlory::Vulkan
             for (int i = 0; i < meshInstancePool_.in_use_size(); ++i)
             {
 
-                PFG_EDITORLOG("Instance transform matrix after upload: ")
-                PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[0][0]) + ", " + std::to_string(instances[i].transform.matrix[0][1]) + ", " + std::to_string(instances[i].transform.matrix[0][2]) + ", " + std::to_string(instances[i].transform.matrix[0][3]))
-                PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[1][0]) + ", " + std::to_string(instances[i].transform.matrix[1][1]) + ", " + std::to_string(instances[i].transform.matrix[1][2]) + ", " + std::to_string(instances[i].transform.matrix[1][3]))
-                PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[2][0]) + ", " + std::to_string(instances[i].transform.matrix[2][1]) + ", " + std::to_string(instances[i].transform.matrix[2][2]) + ", " + std::to_string(instances[i].transform.matrix[2][3]))
+                PFG_EDITORLOG("Instance transform matrix after upload: ");
+                PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[0][0]) + ", " + std::to_string(instances[i].transform.matrix[0][1]) + ", " + std::to_string(instances[i].transform.matrix[0][2]) + ", " + std::to_string(instances[i].transform.matrix[0][3]));
+                PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[1][0]) + ", " + std::to_string(instances[i].transform.matrix[1][1]) + ", " + std::to_string(instances[i].transform.matrix[1][2]) + ", " + std::to_string(instances[i].transform.matrix[1][3]));
+                PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[2][0]) + ", " + std::to_string(instances[i].transform.matrix[2][1]) + ", " + std::to_string(instances[i].transform.matrix[2][2]) + ", " + std::to_string(instances[i].transform.matrix[2][3]));
 
             }
             instancesAccelerationStructuresBuffer_.Unmap();*/
@@ -838,10 +864,10 @@ namespace PixelsForGlory::Vulkan
                     t[2][0], t[2][1], t[2][2], t[2][3]
                 };
 
-                //PFG_EDITORLOG("Instance transform matrix: ")
-                //PFG_EDITORLOG(std::to_string(t[0][0]) + ", " + std::to_string(t[0][1]) + ", " + std::to_string(t[0][2]) + ", " + std::to_string(t[0][3]))
-                //PFG_EDITORLOG(std::to_string(t[1][0]) + ", " + std::to_string(t[1][1]) + ", " + std::to_string(t[1][2]) + ", " + std::to_string(t[1][3]))
-                //PFG_EDITORLOG(std::to_string(t[2][0]) + ", " + std::to_string(t[2][1]) + ", " + std::to_string(t[2][2]) + ", " + std::to_string(t[2][3]))
+                //PFG_EDITORLOG("Instance transform matrix: ");
+                //PFG_EDITORLOG(std::to_string(t[0][0]) + ", " + std::to_string(t[0][1]) + ", " + std::to_string(t[0][2]) + ", " + std::to_string(t[0][3]));
+                //PFG_EDITORLOG(std::to_string(t[1][0]) + ", " + std::to_string(t[1][1]) + ", " + std::to_string(t[1][2]) + ", " + std::to_string(t[1][3]));
+                //PFG_EDITORLOG(std::to_string(t[2][0]) + ", " + std::to_string(t[2][1]) + ", " + std::to_string(t[2][2]) + ", " + std::to_string(t[2][3]));
 
                 instances[instanceAccelerationStructuresIndex].transform = transformMatrix;
                 
@@ -855,10 +881,10 @@ namespace PixelsForGlory::Vulkan
         //for (int i = 0; i < meshInstancePool_.in_use_size(); ++i)
         //{
         //    
-        //    PFG_EDITORLOG("Instance transform matrix: ")
-        //        PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[0][0]) + ", " + std::to_string(instances[i].transform.matrix[0][1]) + ", " + std::to_string(instances[i].transform.matrix[0][2]) + ", " + std::to_string(instances[i].transform.matrix[0][3]))
-        //        PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[1][0]) + ", " + std::to_string(instances[i].transform.matrix[1][1]) + ", " + std::to_string(instances[i].transform.matrix[1][2]) + ", " + std::to_string(instances[i].transform.matrix[1][3]))
-        //        PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[2][0]) + ", " + std::to_string(instances[i].transform.matrix[2][1]) + ", " + std::to_string(instances[i].transform.matrix[2][2]) + ", " + std::to_string(instances[i].transform.matrix[2][3]))
+        //    PFG_EDITORLOG("Instance transform matrix: ");
+        //        PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[0][0]) + ", " + std::to_string(instances[i].transform.matrix[0][1]) + ", " + std::to_string(instances[i].transform.matrix[0][2]) + ", " + std::to_string(instances[i].transform.matrix[0][3]));
+        //        PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[1][0]) + ", " + std::to_string(instances[i].transform.matrix[1][1]) + ", " + std::to_string(instances[i].transform.matrix[1][2]) + ", " + std::to_string(instances[i].transform.matrix[1][3]));
+        //        PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[2][0]) + ", " + std::to_string(instances[i].transform.matrix[2][1]) + ", " + std::to_string(instances[i].transform.matrix[2][2]) + ", " + std::to_string(instances[i].transform.matrix[2][3]));
         //        
         //}
         //instancesAccelerationStructuresBuffer_.Unmap();
@@ -913,7 +939,7 @@ namespace PixelsForGlory::Vulkan
             accelerationStructureCreateInfo.buffer = tlas_.buffer.GetBuffer();
             accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
             accelerationStructureCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-            VK_CHECK("vkCreateAccelerationStructureKHR", vkCreateAccelerationStructureKHR(device_, &accelerationStructureCreateInfo, nullptr, &tlas_.accelerationStructure))
+            VK_CHECK("vkCreateAccelerationStructureKHR", vkCreateAccelerationStructureKHR(device_, &accelerationStructureCreateInfo, nullptr, &tlas_.accelerationStructure));
         }
 
         // The actual build process starts here
@@ -966,7 +992,7 @@ namespace PixelsForGlory::Vulkan
         accelerationStructureDeviceAddressInfo.accelerationStructure = tlas_.accelerationStructure;
         tlas_.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device_, &accelerationStructureDeviceAddressInfo);
 
-        PFG_EDITORLOG("Succesfully built tlas")
+        PFG_EDITORLOG("Succesfully built tlas");
         
         // We did any pending work, reset flags
         rebuildTlas_= false;
@@ -995,11 +1021,19 @@ namespace PixelsForGlory::Vulkan
         }
     }
 
-    void RayTracer::UpdateCamera(float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov) 
+    void RayTracer::UpdateCamera(int cameraInstanceId, float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov)
     {
-        if (cameraData_.GetBuffer() == VK_NULL_HANDLE)
+        if (renderTargets_.find(cameraInstanceId) == renderTargets_.end())
         {
-            cameraData_.Create(
+            // The camera isn't in the system yet, don't attempt to update
+            return;
+        }
+
+        auto& renderTarget = renderTargets_[cameraInstanceId];
+
+        if (renderTarget->cameraData.GetBuffer() == VK_NULL_HANDLE)
+        {
+            renderTarget->cameraData.Create(
                 device_,
                 physicalDeviceMemoryProperties_,
                 sizeof(ShaderCameraParam),
@@ -1007,7 +1041,7 @@ namespace PixelsForGlory::Vulkan
                 Vulkan::Buffer::kDefaultMemoryPropertyFlags);
         }
 
-        auto camera = reinterpret_cast<ShaderCameraParam*>(cameraData_.Map());
+        auto camera = reinterpret_cast<ShaderCameraParam*>(renderTarget->cameraData.Map());
         camera->camPos.x = camPos[0];
         camera->camPos.y = camPos[1];
         camera->camPos.z = camPos[2];
@@ -1028,7 +1062,9 @@ namespace PixelsForGlory::Vulkan
         camera->camNearFarFov.y = camNearFarFov[1];
         camera->camNearFarFov.z = camNearFarFov[2];
 
-        cameraData_.Unmap();
+        renderTarget->cameraData.Unmap();
+        
+        //PFG_EDITORLOG("Updated camera " + std::to_string(cameraInstanceId));
     }
 
     void RayTracer::UpdateSceneData(float* color) 
@@ -1052,11 +1088,23 @@ namespace PixelsForGlory::Vulkan
         sceneData_.Unmap();
     }
 
-    void RayTracer::TraceRays()
+    void RayTracer::TraceRays(int cameraInstanceId)
     {
+        if (renderTargets_.find(cameraInstanceId) == renderTargets_.end())
+        {
+            // The camera isn't in the system yet, don't attempt to trace
+            return;
+        }
+
+        if (renderTargets_[cameraInstanceId]->cameraData.GetBuffer() == VK_NULL_HANDLE)
+        {
+            // This camera hasn't been updated get for render
+            return;
+        }
+
         if (tlas_.accelerationStructure == VK_NULL_HANDLE)
         {
-            PFG_EDITORLOG("We don't have a tlas, so we cannot trace rays!")
+            PFG_EDITORLOG("We don't have a tlas, so we cannot trace rays!");
             return;
         }
 
@@ -1065,7 +1113,7 @@ namespace PixelsForGlory::Vulkan
             CreatePipelineLayout();
             if (pipelineLayout_ == VK_NULL_HANDLE)
             {
-                PFG_EDITORLOG("Something went wrong with creating the pipeline layout")
+                PFG_EDITORLOG("Something went wrong with creating the pipeline layout");
                 // Something went wrong, don't continue
                 return;
             }
@@ -1076,15 +1124,15 @@ namespace PixelsForGlory::Vulkan
             CreatePipeline();
             if (pipeline_ == VK_NULL_HANDLE)
             {
-                PFG_EDITORLOG("Something went wrong with creating the pipeline")
+                PFG_EDITORLOG("Something went wrong with creating the pipeline");
                 return;
             }
         }
         
         if (pipeline_ != VK_NULL_HANDLE && pipelineLayout_!= VK_NULL_HANDLE)
         {
-            BuildDescriptorBufferInfos();
-            UpdateDescriptorSets();
+            BuildDescriptorBufferInfos(cameraInstanceId);
+            UpdateDescriptorSets(cameraInstanceId);
 
             // cannot manage resources inside renderpass
             graphicsInterface_->EnsureOutsideRenderPass();
@@ -1095,8 +1143,8 @@ namespace PixelsForGlory::Vulkan
                 return;
             }
 
-            BuildAndSubmitRayTracingCommandBuffer(recordingState.commandBuffer);
-            CopyRenderToRenderTarget(recordingState.commandBuffer);
+            BuildAndSubmitRayTracingCommandBuffer(cameraInstanceId, recordingState.commandBuffer);
+            CopyRenderToRenderTarget(cameraInstanceId, recordingState.commandBuffer);
         }
     }
 
@@ -1109,7 +1157,7 @@ namespace PixelsForGlory::Vulkan
         commandPoolCreateInfo.queueFamilyIndex = queueFamilyIndex;
         commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-        VK_CHECK("vkCreateCommandPool", vkCreateCommandPool(device_, &commandPoolCreateInfo, nullptr, &outCommandPool))
+        VK_CHECK("vkCreateCommandPool", vkCreateCommandPool(device_, &commandPoolCreateInfo, nullptr, &outCommandPool));
     }
 
     void RayTracer::CreateWorkerCommandBuffer(VkCommandBufferLevel level, VkCommandPool commandPool, VkCommandBuffer& outCommandBuffer)
@@ -1121,17 +1169,17 @@ namespace PixelsForGlory::Vulkan
         commandBufferAllocateInfo.level = level;
         commandBufferAllocateInfo.commandBufferCount = 1;
 
-        VK_CHECK("vkAllocateCommandBuffers", vkAllocateCommandBuffers(device_, &commandBufferAllocateInfo, &outCommandBuffer))
+        VK_CHECK("vkAllocateCommandBuffers", vkAllocateCommandBuffers(device_, &commandBufferAllocateInfo, &outCommandBuffer));
     
         // Start recording for the new command buffer
         VkCommandBufferBeginInfo commandBufferBeginInfo = { };
         commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        VK_CHECK("vkBeginCommandBuffer", vkBeginCommandBuffer(outCommandBuffer, &commandBufferBeginInfo))
+        VK_CHECK("vkBeginCommandBuffer", vkBeginCommandBuffer(outCommandBuffer, &commandBufferBeginInfo));
     }
 
     void RayTracer::SubmitWorkerCommandBuffer(VkCommandBuffer commandBuffer, VkCommandPool commandPool, const VkQueue& queue)
     {
-        VK_CHECK("vkEndCommandBuffer", vkEndCommandBuffer(commandBuffer))
+        VK_CHECK("vkEndCommandBuffer", vkEndCommandBuffer(commandBuffer));
 
         VkSubmitInfo submitInfo = {};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1150,7 +1198,7 @@ namespace PixelsForGlory::Vulkan
         fenceCreateInfo.flags = 0;
     
         VkFence fence;
-        VK_CHECK("vkCreateFence", vkCreateFence(device_, &fenceCreateInfo, nullptr, &fence))
+        VK_CHECK("vkCreateFence", vkCreateFence(device_, &fenceCreateInfo, nullptr, &fence));
     
         // Submit to the queue
         VkResult result = vkQueueSubmit(queue, 1, &submitInfo, fence);
@@ -1159,11 +1207,11 @@ namespace PixelsForGlory::Vulkan
 
         }
 
-        VK_CHECK("vkQueueSubmit", result)
+        VK_CHECK("vkQueueSubmit", result);
     
         // Wait for the fence to signal that command buffer has finished executing
         const uint64_t DEFAULT_FENCE_TIMEOUT = 100000000000;
-        VK_CHECK("vkWaitForFences", vkWaitForFences(device_, 1, &fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT))
+        VK_CHECK("vkWaitForFences", vkWaitForFences(device_, 1, &fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT));
     
         vkDestroyFence(device_, fence, nullptr);
 
@@ -1193,10 +1241,10 @@ namespace PixelsForGlory::Vulkan
         transformBuffer.UploadData(&transformMatrix, sizeof(VkTransformMatrixKHR));
 
         //auto identity = reinterpret_cast<VkTransformMatrixKHR*>(transformBuffer.Map());
-        //PFG_EDITORLOG("Identity matrix: ")
-        //PFG_EDITORLOG(std::to_string(identity->matrix[0][0]) + ", " + std::to_string(identity->matrix[0][1]) + ", " + std::to_string(identity->matrix[0][2]) + ", " + std::to_string(identity->matrix[0][3]))
-        //PFG_EDITORLOG(std::to_string(identity->matrix[1][0]) + ", " + std::to_string(identity->matrix[1][1]) + ", " + std::to_string(identity->matrix[1][2]) + ", " + std::to_string(identity->matrix[1][3]))
-        //PFG_EDITORLOG(std::to_string(identity->matrix[2][0]) + ", " + std::to_string(identity->matrix[2][1]) + ", " + std::to_string(identity->matrix[2][2]) + ", " + std::to_string(identity->matrix[2][3]))
+        //PFG_EDITORLOG("Identity matrix: ");
+        //PFG_EDITORLOG(std::to_string(identity->matrix[0][0]) + ", " + std::to_string(identity->matrix[0][1]) + ", " + std::to_string(identity->matrix[0][2]) + ", " + std::to_string(identity->matrix[0][3]));
+        //PFG_EDITORLOG(std::to_string(identity->matrix[1][0]) + ", " + std::to_string(identity->matrix[1][1]) + ", " + std::to_string(identity->matrix[1][2]) + ", " + std::to_string(identity->matrix[1][3]));
+        //PFG_EDITORLOG(std::to_string(identity->matrix[2][0]) + ", " + std::to_string(identity->matrix[2][1]) + ", " + std::to_string(identity->matrix[2][2]) + ", " + std::to_string(identity->matrix[2][3]));
         //transformBuffer.Unmap();
 
         // The bottom level acceleration structure contains one set of triangles as the input geometry
@@ -1225,8 +1273,8 @@ namespace PixelsForGlory::Vulkan
 
         // Number of triangles 
         const uint32_t primitiveCount = sharedMeshesPool_[sharedMeshPoolIndex]->indexCount / 3;
-        /*PFG_EDITORLOG("BuildBlas() vertexCount: " + std::to_string(sharedMeshesPool_[sharedMeshPoolIndex]->vertexCount))
-        PFG_EDITORLOG("BuildBlas() indexCount: " + std::to_string(sharedMeshesPool_[sharedMeshPoolIndex]->indexCount))*/
+        /*PFG_EDITORLOG("BuildBlas() vertexCount: " + std::to_string(sharedMeshesPool_[sharedMeshPoolIndex]->vertexCount));
+        PFG_EDITORLOG("BuildBlas() indexCount: " + std::to_string(sharedMeshesPool_[sharedMeshPoolIndex]->indexCount));*/
 
         VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo = {};
         accelerationStructureBuildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
@@ -1251,7 +1299,7 @@ namespace PixelsForGlory::Vulkan
         accelerationStructureCreateInfo.buffer = sharedMeshesPool_[sharedMeshPoolIndex]->blas.buffer.GetBuffer();
         accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
         accelerationStructureCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-        VK_CHECK("vkCreateAccelerationStructureKHR", vkCreateAccelerationStructureKHR(device_ , &accelerationStructureCreateInfo, nullptr, &sharedMeshesPool_[sharedMeshPoolIndex]->blas.accelerationStructure))
+        VK_CHECK("vkCreateAccelerationStructureKHR", vkCreateAccelerationStructureKHR(device_, &accelerationStructureCreateInfo, nullptr, &sharedMeshesPool_[sharedMeshPoolIndex]->blas.accelerationStructure));
 
         // The actual build process starts here
         // Create a scratch buffer as a temporary storage for the acceleration structure build
@@ -1301,7 +1349,7 @@ namespace PixelsForGlory::Vulkan
         accelerationStructureDeviceAddressInfo.accelerationStructure = sharedMeshesPool_[sharedMeshPoolIndex]->blas.accelerationStructure;
         sharedMeshesPool_[sharedMeshPoolIndex]->blas.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device_, &accelerationStructureDeviceAddressInfo);
 
-        PFG_EDITORLOG("Built blas for mesh (sharedMeshInstanceId: " + std::to_string(sharedMeshesPool_[sharedMeshPoolIndex]->sharedMeshInstanceId) + ")")
+        PFG_EDITORLOG("Built blas for mesh (sharedMeshInstanceId: " + std::to_string(sharedMeshesPool_[sharedMeshPoolIndex]->sharedMeshInstanceId) + ")");
     }
 
     void RayTracer::CreateDescriptorSetsLayouts()
@@ -1349,7 +1397,7 @@ namespace PixelsForGlory::Vulkan
                                             &descriptorSetLayoutCreateInfo, 
                                             nullptr, 
                                             // Overkill, but represents the sets its creating                        
-                                            &descriptorSetLayouts_[DESCRIPTOR_SET_ACCELERATION_STRUCTURE & DESCRIPTOR_SET_SCENE_DATA & DESCRIPTOR_SET_CAMERA_DATA])) 
+                                            &descriptorSetLayouts_[DESCRIPTOR_SET_ACCELERATION_STRUCTURE & DESCRIPTOR_SET_SCENE_DATA & DESCRIPTOR_SET_CAMERA_DATA]));
         }
 
         // Set 1
@@ -1365,8 +1413,8 @@ namespace PixelsForGlory::Vulkan
             descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
             descriptorSetLayoutCreateInfo.bindingCount = 1;
             descriptorSetLayoutCreateInfo.pBindings = &imageLayoutBinding;
-
-            VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_RENDER_TARGET]))
+            
+            VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_RENDER_TARGET]));
         }
 
         // set 2
@@ -1392,7 +1440,7 @@ namespace PixelsForGlory::Vulkan
             descriptorSetLayoutCreateInfo.pBindings = &verticesLayoutBinding;
             descriptorSetLayoutCreateInfo.pNext = &setBindingFlags;
 
-            VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_VERTEX_ATTRIBUTES]))
+            VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_VERTEX_ATTRIBUTES]));
         }
 
         // set 3
@@ -1418,7 +1466,7 @@ namespace PixelsForGlory::Vulkan
             descriptorSetLayoutCreateInfo.pBindings = &indicesLayoutBinding;
             descriptorSetLayoutCreateInfo.pNext = &setBindingFlags;
 
-            VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_FACE_DATA]))
+            VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_FACE_DATA]));
         }
     }
 
@@ -1472,18 +1520,22 @@ namespace PixelsForGlory::Vulkan
         rayPipelineInfo.maxPipelineRayRecursionDepth = 1;
         rayPipelineInfo.layout = pipelineLayout_;
 
-        VK_CHECK("vkCreateRayTracingPipelinesKHR", vkCreateRayTracingPipelinesKHR(device_, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rayPipelineInfo, nullptr, &pipeline_))
+        VK_CHECK("vkCreateRayTracingPipelinesKHR", vkCreateRayTracingPipelinesKHR(device_, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rayPipelineInfo, nullptr, &pipeline_));
 
         shaderBindingTable_.CreateSBT(device_, physicalDeviceMemoryProperties_, pipeline_);
     }
 
-    void RayTracer::BuildAndSubmitRayTracingCommandBuffer(VkCommandBuffer commandBuffer)
+    void RayTracer::BuildAndSubmitRayTracingCommandBuffer(int cameraInstanceId, VkCommandBuffer commandBuffer)
     {
+        // NOTE: assumes that renderTargets_ has already been checked
+
         UnityVulkanRecordingState recordingState;
         if (!graphicsInterface_->CommandRecordingState(&recordingState, kUnityVulkanGraphicsQueueAccess_DontCare))
         {
             return;
         }
+
+        auto& renderTarget = renderTargets_[cameraInstanceId];
 
         vkCmdBindPipeline(
             recordingState.commandBuffer,
@@ -1494,7 +1546,7 @@ namespace PixelsForGlory::Vulkan
             recordingState.commandBuffer,
             VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
             pipelineLayout_, 0,
-            static_cast<uint32_t>(descriptorSets_.size()), descriptorSets_.data(),
+            static_cast<uint32_t>(renderTarget->descriptorSets.size()), renderTarget->descriptorSets.data(),
             0, 0);
 
         VkStridedDeviceAddressRegionKHR raygenShaderEntry = {};
@@ -1516,16 +1568,18 @@ namespace PixelsForGlory::Vulkan
 
         // Dispatch the ray tracing commands
         vkCmdBindPipeline(recordingState.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline_);
-        vkCmdBindDescriptorSets(recordingState.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout_, 0, static_cast<uint32_t>(descriptorSets_.size()), descriptorSets_.data(), 0, 0);
+        vkCmdBindDescriptorSets(recordingState.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout_, 0, static_cast<uint32_t>(renderTarget->descriptorSets.size()), renderTarget->descriptorSets.data(), 0, 0);
 
         // Make into a storage image
         VkImageSubresourceRange range = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
         Vulkan::Image::UpdateImageBarrier(
             recordingState.commandBuffer,
-            renderTarget_.stagingImage.GetImage(),
+            renderTargets_[cameraInstanceId]->stagingImage.GetImage(),
             range,
             0, VK_ACCESS_SHADER_WRITE_BIT,
             VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+
+        //PFG_EDITORLOG("Tracing for " + std::to_string(cameraInstanceId));
 
         vkCmdTraceRaysKHR(
             recordingState.commandBuffer,
@@ -1533,17 +1587,19 @@ namespace PixelsForGlory::Vulkan
             &missShaderEntry,
             &hitShaderEntry,
             &callableShaderEntry,
-            renderTarget_.extent.width,
-            renderTarget_.extent.height,
-            renderTarget_.extent.depth);
+            renderTargets_[cameraInstanceId]->extent.width,
+            renderTargets_[cameraInstanceId]->extent.height,
+            renderTargets_[cameraInstanceId]->extent.depth);
 
         //SubmitWorkerCommandBuffer(commandBuffer, graphicsCommandPool_, graphicsQueue_);
     }
 
-    void RayTracer::CopyRenderToRenderTarget(VkCommandBuffer commandBuffer)
+    void RayTracer::CopyRenderToRenderTarget(int cameraInstanceId, VkCommandBuffer commandBuffer)
     {
+        // NOTE: assumes that renderTargets_ has already been checked
+
         UnityVulkanImage image;
-        if (!graphicsInterface_->AccessTexture(renderTarget_.destination,
+        if (!graphicsInterface_->AccessTexture(renderTargets_[cameraInstanceId]->destination,
             UnityVulkanWholeImage,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -1559,12 +1615,14 @@ namespace PixelsForGlory::Vulkan
         {
             return;
         }
+        
+        PFG_EDITORLOG("Copying render for " + std::to_string(cameraInstanceId));
 
         VkImageSubresourceRange range = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
         VkImageCopy region;
-        region.extent.width = renderTarget_.extent.width;
-        region.extent.height = renderTarget_.extent.height;
+        region.extent.width = renderTargets_[cameraInstanceId]->extent.width;
+        region.extent.height = renderTargets_[cameraInstanceId]->extent.height;
         region.extent.depth = 1;
         region.srcOffset.x = 0;
         region.srcOffset.y = 0;
@@ -1584,7 +1642,7 @@ namespace PixelsForGlory::Vulkan
         // Assign target image to be transfer optimal
         Vulkan::Image::UpdateImageBarrier(
             recordingState.commandBuffer,
-            renderTarget_.stagingImage.GetImage(),
+            renderTargets_[cameraInstanceId]->stagingImage.GetImage(),
             range,
             VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,
             VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
@@ -1597,12 +1655,12 @@ namespace PixelsForGlory::Vulkan
             VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-        vkCmdCopyImage(recordingState.commandBuffer, renderTarget_.stagingImage.GetImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+        vkCmdCopyImage(recordingState.commandBuffer, renderTargets_[cameraInstanceId]->stagingImage.GetImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
         // Revert target image 
         Vulkan::Image::UpdateImageBarrier(
             recordingState.commandBuffer,
-            renderTarget_.stagingImage.GetImage(),
+            renderTargets_[cameraInstanceId]->stagingImage.GetImage(),
             range,
             VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT,
             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
@@ -1616,16 +1674,23 @@ namespace PixelsForGlory::Vulkan
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
 
-    void RayTracer::BuildDescriptorBufferInfos()
+    void RayTracer::BuildDescriptorBufferInfos(int cameraInstanceId)
     {
+        // NOTE: assumes that renderTargets_ has already been checked 
+
+        auto& renderTarget = renderTargets_[cameraInstanceId];
+
+        renderTarget->cameraDataBufferInfo.buffer = renderTarget->cameraData.GetBuffer();
+        renderTarget->cameraDataBufferInfo.offset = 0;
+        renderTarget->cameraDataBufferInfo.range = renderTarget->cameraData.GetSize();
+
+        //PFG_EDITORLOG("Updated BuildDescriptorBufferInfos for " + std::to_string(cameraInstanceId));
+
+        // TODO: move all below here because its unnecessary to do this each build?
         sceneBufferInfo_.buffer = sceneData_.GetBuffer();
         sceneBufferInfo_.offset = 0;
         sceneBufferInfo_.range = sceneData_.GetSize();
-    
-        cameraBufferInfo_.buffer = cameraData_.GetBuffer();
-        cameraBufferInfo_.offset = 0;
-        cameraBufferInfo_.range = cameraData_.GetSize();
-    
+       
         sharedMeshAttributesBufferInfos_.clear();
         sharedMeshAttributesBufferInfos_.resize(sharedMeshAttributesPool_.pool_size());
         for (int i = 0; i < sharedMeshAttributesPool_.pool_size(); ++i)
@@ -1669,32 +1734,35 @@ namespace PixelsForGlory::Vulkan
         descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         descriptorPoolCreateInfo.pNext = nullptr;
         descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT; // This allows vkFreeDescriptorSets to be called
-        descriptorPoolCreateInfo.maxSets = DESCRIPTOR_SET_SIZE;
+        descriptorPoolCreateInfo.maxSets = 100;  // I have no idea what this should be T_T
         descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         descriptorPoolCreateInfo.pPoolSizes = poolSizes.data();
     
-        VK_CHECK("vkCreateDescriptorPool", vkCreateDescriptorPool(device_, &descriptorPoolCreateInfo, nullptr, &descriptorPool_))
-    
-            PFG_EDITORLOG("Successfully created descriptor pool")
+        VK_CHECK("vkCreateDescriptorPool", vkCreateDescriptorPool(device_, &descriptorPoolCreateInfo, nullptr, &descriptorPool_));
+
+        PFG_EDITORLOG("Successfully created descriptor pool");
     }
     
-    void RayTracer::UpdateDescriptorSets() 
+    void RayTracer::UpdateDescriptorSets(int cameraInstanceId)
     {
-        if (!updateDescriptorSetsData_)
+        // NOTE: assumes that renderTargets_ has already been checked 
+        auto& renderTarget = renderTargets_[cameraInstanceId];
+
+        if (!renderTarget->updateDescriptorSetsData)
         {
             return;
         }
 
-        if (descriptorSets_.size() > 0)
+        if (renderTarget->descriptorSets.size() > 0)
         {
             // Free existing descriptor sets before attempting to allocate new ones!
-            vkFreeDescriptorSets(device_, descriptorPool_, DESCRIPTOR_SET_SIZE, descriptorSets_.data());
+            vkFreeDescriptorSets(device_, descriptorPool_, DESCRIPTOR_SET_SIZE, renderTarget->descriptorSets.data());
         }
 
         // Update the descriptor sets with the actual data to store in memory.
     
         // Now use the pool to upload data for each descriptor
-        descriptorSets_.resize(DESCRIPTOR_SET_SIZE);
+        renderTarget->descriptorSets.resize(DESCRIPTOR_SET_SIZE);
         std::vector<uint32_t> variableDescriptorCounts({
             1,                                                              // Set 0
             1,                                                              // Set 1
@@ -1715,7 +1783,7 @@ namespace PixelsForGlory::Vulkan
         descriptorSetAllocateInfo.descriptorSetCount = DESCRIPTOR_SET_SIZE;
         descriptorSetAllocateInfo.pSetLayouts = descriptorSetLayouts_.data();
     
-        VK_CHECK("vkAllocateDescriptorSets", vkAllocateDescriptorSets(device_, &descriptorSetAllocateInfo, descriptorSets_.data()))
+        VK_CHECK("vkAllocateDescriptorSets", vkAllocateDescriptorSets(device_, &descriptorSetAllocateInfo, renderTarget->descriptorSets.data()));
     
         std::vector<VkWriteDescriptorSet> descriptorWrites;
         // Set 0
@@ -1731,7 +1799,7 @@ namespace PixelsForGlory::Vulkan
                 VkWriteDescriptorSet accelerationStructureWrite;
                 accelerationStructureWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 accelerationStructureWrite.pNext = &descriptorAccelerationStructureInfo; // Notice that pNext is assigned here!
-                accelerationStructureWrite.dstSet = descriptorSets_[DESCRIPTOR_SET_ACCELERATION_STRUCTURE];
+                accelerationStructureWrite.dstSet = renderTarget->descriptorSets[DESCRIPTOR_SET_ACCELERATION_STRUCTURE];
                 accelerationStructureWrite.dstBinding = DESCRIPTOR_BINDING_ACCELERATION_STRUCTURE;
                 accelerationStructureWrite.dstArrayElement = 0;
                 accelerationStructureWrite.descriptorCount = 1;
@@ -1748,7 +1816,7 @@ namespace PixelsForGlory::Vulkan
                 VkWriteDescriptorSet sceneBufferWrite;
                 sceneBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 sceneBufferWrite.pNext = nullptr;
-                sceneBufferWrite.dstSet = descriptorSets_[DESCRIPTOR_SET_SCENE_DATA];
+                sceneBufferWrite.dstSet = renderTarget->descriptorSets[DESCRIPTOR_SET_SCENE_DATA];
                 sceneBufferWrite.dstBinding = DESCRIPTOR_BINDING_SCENE_DATA;
                 sceneBufferWrite.dstArrayElement = 0;
                 sceneBufferWrite.descriptorCount = 1;
@@ -1765,13 +1833,13 @@ namespace PixelsForGlory::Vulkan
                 VkWriteDescriptorSet camdataBufferWrite;
                 camdataBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 camdataBufferWrite.pNext = nullptr;
-                camdataBufferWrite.dstSet = descriptorSets_[DESCRIPTOR_SET_CAMERA_DATA];
+                camdataBufferWrite.dstSet = renderTarget->descriptorSets[DESCRIPTOR_SET_CAMERA_DATA];
                 camdataBufferWrite.dstBinding = DESCRIPTOR_BINDING_CAMERA_DATA;
                 camdataBufferWrite.dstArrayElement = 0;
                 camdataBufferWrite.descriptorCount = 1;
                 camdataBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
                 camdataBufferWrite.pImageInfo = nullptr;
-                camdataBufferWrite.pBufferInfo = &cameraBufferInfo_;
+                camdataBufferWrite.pBufferInfo = &renderTargets_[cameraInstanceId]->cameraDataBufferInfo;
                 camdataBufferWrite.pTexelBufferView = nullptr;
 
                 descriptorWrites.push_back(camdataBufferWrite);
@@ -1786,13 +1854,13 @@ namespace PixelsForGlory::Vulkan
                 // From renderTargets_ map, Game = 1
                 VkDescriptorImageInfo descriptorRenderTargetGameImageInfo;
                 descriptorRenderTargetGameImageInfo.sampler = VK_NULL_HANDLE;
-                descriptorRenderTargetGameImageInfo.imageView = renderTarget_.stagingImage.GetImageView();
+                descriptorRenderTargetGameImageInfo.imageView = renderTargets_[cameraInstanceId]->stagingImage.GetImageView();
                 descriptorRenderTargetGameImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
                 VkWriteDescriptorSet renderTargetGameImageWrite;
                 renderTargetGameImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 renderTargetGameImageWrite.pNext = nullptr;
-                renderTargetGameImageWrite.dstSet = descriptorSets_[DESCRIPTOR_SET_RENDER_TARGET];
+                renderTargetGameImageWrite.dstSet = renderTarget->descriptorSets[DESCRIPTOR_SET_RENDER_TARGET];
                 renderTargetGameImageWrite.dstBinding = DESCRIPTOR_BINDING_RENDER_TARGET;
                 renderTargetGameImageWrite.dstArrayElement = 0;
                 renderTargetGameImageWrite.descriptorCount = 1;
@@ -1812,7 +1880,7 @@ namespace PixelsForGlory::Vulkan
                 VkWriteDescriptorSet attribsBufferWrite;
                 attribsBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 attribsBufferWrite.pNext = nullptr;
-                attribsBufferWrite.dstSet = descriptorSets_[DESCRIPTOR_SET_VERTEX_ATTRIBUTES];
+                attribsBufferWrite.dstSet = renderTarget->descriptorSets[DESCRIPTOR_SET_VERTEX_ATTRIBUTES];
                 attribsBufferWrite.dstBinding = DESCRIPTOR_BINDING_VERTEX_ATTRIBUTES;
                 attribsBufferWrite.dstArrayElement = 0;
                 attribsBufferWrite.descriptorCount = static_cast<uint32_t>(sharedMeshAttributesPool_.pool_size());
@@ -1829,7 +1897,7 @@ namespace PixelsForGlory::Vulkan
                 VkWriteDescriptorSet facesBufferWrite;
                 facesBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 facesBufferWrite.pNext = nullptr;
-                facesBufferWrite.dstSet = descriptorSets_[DESCRIPTOR_SET_FACE_DATA];
+                facesBufferWrite.dstSet = renderTarget->descriptorSets[DESCRIPTOR_SET_FACE_DATA];
                 facesBufferWrite.dstBinding = DESCRIPTOR_BINDING_FACE_DATA;
                 facesBufferWrite.dstArrayElement = 0;
                 facesBufferWrite.descriptorCount = static_cast<uint32_t>(sharedMeshFacesPool_.pool_size());;
@@ -1845,9 +1913,9 @@ namespace PixelsForGlory::Vulkan
         vkUpdateDescriptorSets(device_, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, VK_NULL_HANDLE);
    
         // Make sure unnecessary updates aren't made
-        updateDescriptorSetsData_ = false;
+        renderTarget->updateDescriptorSetsData = false;
 
-        //PFG_EDITORLOG("Successfully updated descriptor sets")
+        PFG_EDITORLOG("Successfully updated descriptor sets for " + std::to_string(cameraInstanceId));
     }
 
 }

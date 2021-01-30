@@ -6,9 +6,16 @@ using System.Runtime.InteropServices;
 
 public class RayTracingCameraRenderer
 {
+    enum Events : int
+    {
+        None        = 0,
+        TraceRays   = 1
+    };
+
     private ScriptableRenderContext _context;
     private Camera _camera;
-    private Texture2D _target;
+
+    Dictionary<int, Texture2D> _targets = new Dictionary<int, Texture2D>();
 
     private CommandBuffer _commandBuffer = new CommandBuffer()
     {
@@ -35,20 +42,17 @@ public class RayTracingCameraRenderer
         var camUpHandle = GCHandle.Alloc(_camera.transform.up, GCHandleType.Pinned);
         var camSideHandle = GCHandle.Alloc(_camera.transform.right, GCHandleType.Pinned);
         var camNearFarFovHandle = GCHandle.Alloc(new Vector3(_camera.nearClipPlane, _camera.farClipPlane, _camera.fieldOfView), GCHandleType.Pinned);
-        PixelsForGlory.RayTracingPlugin.UpdateCamera(camPosHandle.AddrOfPinnedObject(),
+        PixelsForGlory.RayTracingPlugin.UpdateCamera(_camera.GetInstanceID(),
+                                                     camPosHandle.AddrOfPinnedObject(),
                                                      camDirHandle.AddrOfPinnedObject(),
                                                      camUpHandle.AddrOfPinnedObject(),
                                                      camSideHandle.AddrOfPinnedObject(),
-                                                     camNearFarFovHandle.AddrOfPinnedObject());
+                                                     camNearFarFovHandle.AddrOfPinnedObject()); ;
         camPosHandle.Free();
         camDirHandle.Free();
         camUpHandle.Free();
         camSideHandle.Free();
         camNearFarFovHandle.Free();
-
-        // TODO: PLAN OF ATTACK
-        //  - pass target to plugin, set descriptor set and render target for currentFrameNumber
-        //  - when tracing is complete, free descriptor set and copy output to render target
 
         int width;
         int height;
@@ -63,19 +67,23 @@ public class RayTracingCameraRenderer
             height = _camera.activeTexture.height;
         }
 
-        _target = new Texture2D(width, height, TextureFormat.RGBA32, false)
+        int camInstanceId = _camera.GetInstanceID();
+        if (!_targets.ContainsKey(camInstanceId) || _targets[camInstanceId].width != width || _targets[camInstanceId].height != height)
         {
-            // Set point filtering just so we can see the pixels clearly
-            filterMode = FilterMode.Point
-        };
+            _targets[camInstanceId] = new Texture2D(width, height, TextureFormat.RGBA32, false)
+            {
+                // Set point filtering just so we can see the pixels clearly
+                filterMode = FilterMode.Point
+            };
 
-        // Call Apply() so it's actually uploaded to the GPU
-        _target.Apply();
+            // Call Apply() so it's actually uploaded to the GPU
+            _targets[camInstanceId].Apply();
 
-        if (PixelsForGlory.RayTracingPlugin.SetRenderTarget((int)_target.format, _target.width, _target.height, _target.GetNativeTexturePtr()) == 0)
-        {
-            Debug.Log("Something went wrong with setting render target");
-            return false;
+            if (PixelsForGlory.RayTracingPlugin.SetRenderTarget(camInstanceId, (int)_targets[camInstanceId].format, _targets[camInstanceId].width, _targets[camInstanceId].height, _targets[camInstanceId].GetNativeTexturePtr()) == 0)
+            {
+                Debug.Log("Something went wrong with setting render target");
+                return false;
+            }
         }
 
         return true;
@@ -86,11 +94,13 @@ public class RayTracingCameraRenderer
         _commandBuffer.Clear();
 
         var cameraTextureId = new RenderTargetIdentifier(_camera.targetTexture);
+        var cameraInstanceId = _camera.GetInstanceID();
+        var cameraInstanceIdHandle = GCHandle.Alloc(cameraInstanceId, GCHandleType.Pinned);
 
         string sampleName = "Trace rays";
         _commandBuffer.BeginSample(sampleName);
-        _commandBuffer.IssuePluginEvent(PixelsForGlory.RayTracingPlugin.GetRenderEventFunc(), 1);
-        _commandBuffer.Blit(_target, cameraTextureId);
+        _commandBuffer.IssuePluginEventAndData(PixelsForGlory.RayTracingPlugin.GetEventAndDataFunc(), (int)Events.TraceRays, cameraInstanceIdHandle.AddrOfPinnedObject());
+        _commandBuffer.Blit(_targets[_camera.GetInstanceID()], cameraTextureId);
         _commandBuffer.EndSample(sampleName);
 
         _context.ExecuteCommandBuffer(_commandBuffer);
@@ -98,6 +108,6 @@ public class RayTracingCameraRenderer
 
         _commandBuffer.Clear();
 
- 
+        cameraInstanceIdHandle.Free();
     }
 }

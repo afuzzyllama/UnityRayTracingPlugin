@@ -29,7 +29,7 @@ namespace PixelsForGlory
         /// <param name="height"></param>
         /// <param name="textureHandle">Destination texture for render</param>
         /// <returns>1 if successful, 0 otherwise</returns>
-        virtual int SetRenderTarget(int unityTextureFormat, int width, int height, void* textureHandle) = 0;
+        virtual int SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, void* textureHandle) = 0;
 
         /// <summary>
         /// Process general event like initialization, shutdown, device loss/reset etc.
@@ -104,7 +104,7 @@ namespace PixelsForGlory
         /// <param name="camUp"></param>
         /// <param name="camSide"></param>
         /// <param name="camNearFarFov"></param>
-        virtual void UpdateCamera(float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov) = 0;
+        virtual void UpdateCamera(int cameraInstanceId, float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov) = 0;
 
         /// <summary>
         /// Update scene data 
@@ -115,7 +115,7 @@ namespace PixelsForGlory
         /// <summary>
         /// Ray those rays!
         /// </summary>
-        virtual void TraceRays() = 0;
+        virtual void TraceRays(int cameraInstanceId) = 0;
     };
 
     // Create a graphics API implementation instance for the given API type.

@@ -42,6 +42,8 @@ namespace PixelsForGlory::Vulkan
             : destination(nullptr)
             , format(VK_FORMAT_UNDEFINED)
             , extent(VkExtent3D())
+            , cameraDataBufferInfo(VkDescriptorBufferInfo())
+            , updateDescriptorSetsData(true)
         {}
 
         void* destination;
@@ -49,6 +51,12 @@ namespace PixelsForGlory::Vulkan
         VkExtent3D extent;
         Vulkan::Image stagingImage;
         
+        // Buffer that represents ShaderCameraParam
+        Vulkan::Buffer cameraData;
+        VkDescriptorBufferInfo cameraDataBufferInfo;
+
+        std::vector<VkDescriptorSet> descriptorSets;
+        bool updateDescriptorSetsData;
     };
 
     struct RayTracerAccelerationStructure
@@ -93,6 +101,7 @@ namespace PixelsForGlory::Vulkan
         RayTracerMeshInstanceData()
             : sharedMeshIndex(-1)
             , localToWorld(mat4())
+            , gameObjectInstanceId(0)
         {}
 
         int gameObjectInstanceId;
@@ -137,7 +146,7 @@ namespace PixelsForGlory::Vulkan
 
 #pragma region RayTracerAPI
         virtual void SetShaderFolder(std::string shaderFolder);
-        virtual int SetRenderTarget(int unityTextureFormat, int width, int height, void* textureHandle);
+        virtual int SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, void* textureHandle);
         virtual bool ProcessDeviceEvent(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces);
         virtual int GetSharedMeshIndex(int sharedMeshInstanceId);
         virtual int AddSharedMesh(int instanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount);
@@ -147,9 +156,9 @@ namespace PixelsForGlory::Vulkan
         virtual void BuildTlas();
         virtual void Prepare();
         virtual void ResetPipeline();
-        virtual void UpdateCamera(float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov);
+        virtual void UpdateCamera(int cameraInstanceId, float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov);
         virtual void UpdateSceneData(float* color);
-        virtual void TraceRays();
+        virtual void TraceRays(int cameraInstanceId);
 #pragma endregion RayTracerAPI
 
 
@@ -178,7 +187,7 @@ namespace PixelsForGlory::Vulkan
         
         bool alreadyPrepared_;
 
-        RayTracerRenderTarget renderTarget_;
+        std::map<int, std::unique_ptr<RayTracerRenderTarget>> renderTargets_;
 
 #pragma region SharedMeshMembers
 
@@ -213,18 +222,12 @@ namespace PixelsForGlory::Vulkan
        
        Vulkan::ShaderBindingTable shaderBindingTable_;
 
-       // Buffer that represents ShaderCameraParam
-       Vulkan::Buffer cameraData_;
-       VkDescriptorBufferInfo cameraBufferInfo_;
-
        // Buffer that represents ShaderSceneParam
        Vulkan::Buffer sceneData_;
        VkDescriptorBufferInfo sceneBufferInfo_;
 
        std::vector<VkDescriptorSetLayout> descriptorSetLayouts_;
        VkDescriptorPool                   descriptorPool_;
-       std::vector<VkDescriptorSet>       descriptorSets_;
-       bool updateDescriptorSetsData_;
 
 #pragma endregion ShaderResources
 
@@ -279,14 +282,14 @@ namespace PixelsForGlory::Vulkan
         /// <summary>
         /// Builds and submits ray tracing commands
         /// </summary>
-        void BuildAndSubmitRayTracingCommandBuffer(VkCommandBuffer commandBuffer);
+        void BuildAndSubmitRayTracingCommandBuffer(int cameraInstanceId, VkCommandBuffer commandBuffer);
 
-        void CopyRenderToRenderTarget(VkCommandBuffer commandBuffer);
+        void CopyRenderToRenderTarget(int cameraInstanceId, VkCommandBuffer commandBuffer);
 
         /// <summary>
         /// Builds descriptor buffer infos for descriptor sets
         /// </summary>
-        void BuildDescriptorBufferInfos();
+        void BuildDescriptorBufferInfos(int cameraInstanceId);
 
         /// <summary>
         /// Create the descriptor pool for generating descriptor sets
@@ -296,6 +299,6 @@ namespace PixelsForGlory::Vulkan
         /// <summary>
         /// Update the descriptor sets for the shader
         /// </summary>
-        void UpdateDescriptorSets();
+        void UpdateDescriptorSets(int cameraInstanceId);
     };
 }

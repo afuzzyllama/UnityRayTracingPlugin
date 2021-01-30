@@ -115,7 +115,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     // Only print validation errors
     if (msg.rfind("Validation Error:", 0) == 0)
     {
-        PFG_EDITORLOG(msg)
+        PFG_EDITORLOG(msg);
     }
 
     return VK_FALSE;

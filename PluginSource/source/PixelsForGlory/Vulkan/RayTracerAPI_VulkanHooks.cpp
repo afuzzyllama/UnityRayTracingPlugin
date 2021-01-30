@@ -18,10 +18,10 @@ namespace PixelsForGlory::Vulkan
 
 static VKAPI_ATTR VkResult VKAPI_CALL Hook_vkCreateInstance(const VkInstanceCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkInstance* pInstance)
 {
-    PFG_EDITORLOG("Hook_vkCreateInstance")
+    PFG_EDITORLOG("Hook_vkCreateInstance");
 
     VkResult result = PixelsForGlory::Vulkan::CreateInstance_RayTracer(pCreateInfo, pAllocator, pInstance);
-    VK_CHECK("vkCreateInstance", result)
+    VK_CHECK("vkCreateInstance", result);
 
     PFG_EDITORLOG("Hooked into vkCreateInstance successfully");
 
@@ -30,10 +30,10 @@ static VKAPI_ATTR VkResult VKAPI_CALL Hook_vkCreateInstance(const VkInstanceCrea
 
 static VKAPI_ATTR VkResult VKAPI_CALL Hook_vkCreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDevice* pDevice)
 {
-    PFG_EDITORLOG("Hook_vkCreateDevice")
+    PFG_EDITORLOG("Hook_vkCreateDevice");
 
     VkResult result = PixelsForGlory::Vulkan::CreateDevice_RayTracer(physicalDevice, pCreateInfo, pAllocator, pDevice);
-    VK_CHECK("vkCreateDevice", result)
+    VK_CHECK("vkCreateDevice", result);
 
     PFG_EDITORLOG("Hooked into vkCreateDevice successfully");
 

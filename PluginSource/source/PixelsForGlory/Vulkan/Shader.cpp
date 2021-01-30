@@ -40,12 +40,12 @@ namespace PixelsForGlory::Vulkan
 
             if (!result)
             {
-                PFG_EDITORLOGERROR("Error loading shader: " + std::to_string((int)error))
+                PFG_EDITORLOGERROR("Error loading shader: " + std::to_string((int)error));
             }
         }
         else
         {
-            PFG_EDITORLOGERROR("Cannot open shader file: " + std::string(fileName))
+            PFG_EDITORLOGERROR("Cannot open shader file: " + std::string(fileName));
             return false;
         }
 

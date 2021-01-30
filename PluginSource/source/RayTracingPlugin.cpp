@@ -102,31 +102,54 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
     }
 }
 
-static void UNITY_INTERFACE_API OnRenderEvent(int eventId)
+enum class Events
+{
+    None        = 0,
+    TraceRays   = 1
+};
+
+static void UNITY_INTERFACE_API OnEvent(int eventId)
 {
     // Unknown / unsupported graphics device type? Do nothing
-    PLUGIN_CHECK()
+    PLUGIN_CHECK();
+}
 
-    s_CurrentAPI->TraceRays();
+
+
+static void UNITY_INTERFACE_API OnEventAndData(int eventId, void* data)
+{
+    // Unknown / unsupported graphics device type? Do nothing
+    PLUGIN_CHECK();
+
+    auto event = static_cast<Events>(eventId);
+
+    switch (event)
+    {
+    case Events::TraceRays:
+        int cameraInstanceId = *static_cast<int*>(data);
+        s_CurrentAPI->TraceRays(cameraInstanceId);
+        break;
+    }
+    
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetShaderFolder(const char* shaderFolder)
 {
-    PLUGIN_CHECK()
+    PLUGIN_CHECK();
 
     s_CurrentAPI->SetShaderFolder(std::string(shaderFolder));
 }
 
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetRenderTarget(int unityTextureFormat, int width, int height, void* textureHandle)
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, void* textureHandle)
 {
-    PLUGIN_CHECK_RETURN(0)
+    PLUGIN_CHECK_RETURN(0);
 
-    return s_CurrentAPI->SetRenderTarget( unityTextureFormat, width, height, textureHandle);
+    return s_CurrentAPI->SetRenderTarget(cameraInstanceId, unityTextureFormat, width, height, textureHandle);
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetSharedMeshIndex(int sharedMeshInstanceId)
 {
-    PLUGIN_CHECK_RETURN(-1)
+    PLUGIN_CHECK_RETURN(-1);
 
     return s_CurrentAPI->GetSharedMeshIndex(sharedMeshInstanceId);
 }
@@ -134,69 +157,75 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetSharedMeshIndex(int
 
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddSharedMesh(int instanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount)
 {
-    PLUGIN_CHECK_RETURN(-1)
+    PLUGIN_CHECK_RETURN(-1);
 
     return s_CurrentAPI->AddSharedMesh(instanceId, verticesArray, normalsArray, uvsArray, vertexCount, indicesArray, indexCount);
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetTlasInstanceIndex(int gameObjectInstanceId)
 {
-    PLUGIN_CHECK_RETURN(-1)
+    PLUGIN_CHECK_RETURN(-1);
 
     return s_CurrentAPI->GetTlasInstanceIndex(gameObjectInstanceId);
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddTlasInstance(int gameObjectInstanceId, int sharedMeshIndex, float* l2wMatrix)
 {
-    PLUGIN_CHECK_RETURN(-1)
+    PLUGIN_CHECK_RETURN(-1);
 
     return s_CurrentAPI->AddTlasInstance(gameObjectInstanceId, sharedMeshIndex, l2wMatrix);
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RemoveTlasInstance(int meshInstanceIndex)
 {
-    PLUGIN_CHECK()
+    PLUGIN_CHECK();
 
     s_CurrentAPI->RemoveTlasInstance(meshInstanceIndex);
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API BuildTlas()
 {
-    PLUGIN_CHECK()
+    PLUGIN_CHECK();
 
     s_CurrentAPI->BuildTlas();
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API Prepare()
 {
-    PLUGIN_CHECK()
+    PLUGIN_CHECK();
 
     s_CurrentAPI->Prepare();
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ResetPipeline()
 {
-    PLUGIN_CHECK()
+    PLUGIN_CHECK();
 
     s_CurrentAPI->ResetPipeline();
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateCamera(float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov)
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateCamera(int cameraInstanceId, float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov)
 {
-    PLUGIN_CHECK()
+    PLUGIN_CHECK();
 
-    s_CurrentAPI->UpdateCamera(camPos, camDir, camUp, camSide, camNearFarFov);
+    s_CurrentAPI->UpdateCamera(cameraInstanceId, camPos, camDir, camUp, camSide, camNearFarFov);
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateSceneData(float* color)
 {
-    PLUGIN_CHECK()
+    PLUGIN_CHECK();
 
     s_CurrentAPI->UpdateSceneData(color);
 }
 
-extern "C" UnityRenderingEvent UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetRenderEventFunc()
+extern "C" UnityRenderingEvent UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetEventFunc()
 {
-    return OnRenderEvent;
+    return OnEvent;
 }
+
+extern "C" UnityRenderingEventAndData UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetEventAndDataFunc()
+{
+    return OnEventAndData;
+}
+
 

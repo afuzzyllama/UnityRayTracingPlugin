@@ -54,7 +54,7 @@ namespace PixelsForGlory::Vulkan
             }
 
             result = vkAllocateMemory(device_, &memoryAllocateInfo, nullptr, &memory_);
-            VK_CHECK("vkAllocateMemory", result)
+            VK_CHECK("vkAllocateMemory", result);
                 if (VK_SUCCESS != result) {
                     vkDestroyBuffer(device_, buffer_, nullptr);
                     buffer_ = VK_NULL_HANDLE;
@@ -62,7 +62,7 @@ namespace PixelsForGlory::Vulkan
                 }
                 else {
                     result = vkBindBufferMemory(device_, buffer_, memory_, 0);
-                    VK_CHECK("vkBindBufferMemory", result)
+                    VK_CHECK("vkBindBufferMemory", result);
                         if (VK_SUCCESS != result) {
                             vkDestroyBuffer(device_, buffer_, nullptr);
                             vkFreeMemory(device_, memory_, nullptr);

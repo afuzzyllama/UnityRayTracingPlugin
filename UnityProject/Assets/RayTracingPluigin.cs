@@ -14,7 +14,7 @@ namespace PixelsForGlory
         public static extern int SetShaderFolder(string shaderFolder);
 
         [DllImport("RayTracingPlugin")]
-        public static extern int SetRenderTarget(int unityTextureFormat, int width, int height, IntPtr destination);
+        public static extern int SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, IntPtr destination);
 
         [DllImport("RayTracingPlugin")]
         public static extern void SetTargetTexture(IntPtr texture, int width, int height);
@@ -44,13 +44,16 @@ namespace PixelsForGlory
         public static extern void ResetPipeline();
         
         [DllImport("RayTracingPlugin")]
-        public static extern void UpdateCamera(IntPtr camPos, IntPtr camDir, IntPtr camUp, IntPtr camSide, IntPtr camNearFarFov);
+        public static extern void UpdateCamera(int cameraInstanceId, IntPtr camPos, IntPtr camDir, IntPtr camUp, IntPtr camSide, IntPtr camNearFarFov);
 
         [DllImport("RayTracingPlugin")]
         public static extern void UpdateSceneData(IntPtr color);
 
         [DllImport("RayTracingPlugin")]
-        public static extern IntPtr GetRenderEventFunc();
+        public static extern IntPtr GetEventFunc();
+
+        [DllImport("RayTracingPlugin")]
+        public static extern IntPtr GetEventAndDataFunc();
 
         private static string RootDir;
 
