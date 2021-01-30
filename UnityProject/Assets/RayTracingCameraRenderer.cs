@@ -37,11 +37,13 @@ public class RayTracingCameraRenderer
 
     private bool Setup()
     {
+        var up = -_camera.transform.up;
+
         var camPosHandle = GCHandle.Alloc(_camera.transform.position, GCHandleType.Pinned);
         var camDirHandle = GCHandle.Alloc(_camera.transform.forward, GCHandleType.Pinned);
-        var camUpHandle = GCHandle.Alloc(_camera.transform.up, GCHandleType.Pinned);
+        var camUpHandle = GCHandle.Alloc(up, GCHandleType.Pinned);
         var camSideHandle = GCHandle.Alloc(_camera.transform.right, GCHandleType.Pinned);
-        var camNearFarFovHandle = GCHandle.Alloc(new Vector3(_camera.nearClipPlane, _camera.farClipPlane, _camera.fieldOfView), GCHandleType.Pinned);
+        var camNearFarFovHandle = GCHandle.Alloc(new Vector3(_camera.nearClipPlane, _camera.farClipPlane, Mathf.Deg2Rad * _camera.fieldOfView), GCHandleType.Pinned);
         PixelsForGlory.RayTracingPlugin.UpdateCamera(_camera.GetInstanceID(),
                                                      camPosHandle.AddrOfPinnedObject(),
                                                      camDirHandle.AddrOfPinnedObject(),

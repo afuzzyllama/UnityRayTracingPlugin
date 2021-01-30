@@ -105,7 +105,7 @@ namespace PixelsForGlory::Vulkan
         const char* layerName = "VK_LAYER_KHRONOS_validation";
 
         // TODO: debug flag
-        if (/*_debug*/ true) {
+        if (/*_debug*/ false) {
             createInfo.enabledLayerCount = 1;
             createInfo.ppEnabledLayerNames = &layerName;
 
@@ -133,7 +133,7 @@ namespace PixelsForGlory::Vulkan
             VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
             VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME,
 
-            VK_EXT_DEBUG_UTILS_EXTENSION_NAME  // Enable when debugging of Vulkan is needed
+            /*VK_EXT_DEBUG_UTILS_EXTENSION_NAME*/  // Enable when debugging of Vulkan is needed
         };
 
         createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
