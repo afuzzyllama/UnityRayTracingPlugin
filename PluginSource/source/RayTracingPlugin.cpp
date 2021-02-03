@@ -108,11 +108,11 @@ static void UNITY_INTERFACE_API OnEventAndData(int eventId, void* data)
     
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetShaderFolder(const char* shaderFolder)
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetShaderFolder(const wchar_t* shaderFolder)
 {
     PLUGIN_CHECK();
 
-    s_CurrentAPI->SetShaderFolder(std::string(shaderFolder));
+    s_CurrentAPI->SetShaderFolder(std::wstring(shaderFolder));
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, void* textureHandle)
@@ -129,11 +129,11 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddSharedMesh(int shar
     return (int)s_CurrentAPI->AddSharedMesh(sharedMeshInstanceId, verticesArray, normalsArray, uvsArray, vertexCount, indicesArray, indexCount);
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, float* l2wMatrix)
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, float* l2wMatrix)
 {
-    PLUGIN_CHECK();
+    PLUGIN_CHECK_RETURN(-1);
 
-    return s_CurrentAPI->AddTlasInstance(gameObjectInstanceId, sharedMeshInstanceId, l2wMatrix);
+    return (int)s_CurrentAPI->AddTlasInstance(gameObjectInstanceId, sharedMeshInstanceId, l2wMatrix);
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateTlasInstance(int gameObjectInstanceId, float* l2wMatrix)
@@ -185,11 +185,11 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateSceneData(float
     s_CurrentAPI->UpdateSceneData(color);
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled)
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled)
 {
-    PLUGIN_CHECK();
+    PLUGIN_CHECK_RETURN(-1);
 
-    return s_CurrentAPI->AddLight(lightInstanceId, x, y, z, r, g, b, bounceIntensity, intensity, range, spotAngle, type, enabled);
+    return (int)s_CurrentAPI->AddLight(lightInstanceId, x, y, z, r, g, b, bounceIntensity, intensity, range, spotAngle, type, enabled);
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled)

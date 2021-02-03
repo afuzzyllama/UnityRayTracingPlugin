@@ -10,7 +10,7 @@ namespace PixelsForGlory
         [DllImport("RayTracingPlugin")]
         public static extern void SetTimeFromUnity(float t);
 
-        [DllImport("RayTracingPlugin")]
+        [DllImport("RayTracingPlugin", CharSet = CharSet.Unicode)]
         public static extern int SetShaderFolder(string shaderFolder);
 
         [DllImport("RayTracingPlugin")]
@@ -20,7 +20,7 @@ namespace PixelsForGlory
         public static extern int AddSharedMesh(int sharedMeshInstanceId, IntPtr vertices, IntPtr normals, IntPtr uvs, int vertexCount, IntPtr indices, int indexCount);
 
         [DllImport("RayTracingPlugin")]
-        public static extern void AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, IntPtr l2wMatrix);
+        public static extern int AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, IntPtr l2wMatrix);
 
         [DllImport("RayTracingPlugin")]
         public static extern void UpdateTlasInstance(int gameObjectInstanceId, IntPtr l2wMatrix);
@@ -44,7 +44,7 @@ namespace PixelsForGlory
         public static extern void UpdateSceneData(IntPtr color);
 
         [DllImport("RayTracingPlugin")]
-        public static extern void AddLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled);
+        public static extern int AddLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled);
 
         [DllImport("RayTracingPlugin")]
         public static extern void UpdateLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled);

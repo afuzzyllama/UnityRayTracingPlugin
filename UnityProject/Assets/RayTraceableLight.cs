@@ -23,12 +23,21 @@ class RayTraceableLight : MonoBehaviour
         
     }
 
-    private int _lastLightHash;
+    private Vector3     _lastPosition;
+    private Color       _lastColor;
+    private float       _lastBounceIntensity;
+    private float       _lastIintensity;
+    private float       _lastRange;
+    private float       _lastSpotAngle;
+    private LightType   _lastType;
+    private bool        _lastEnabled;
+
+    private bool _registeredWithRayTracer = false;
 
     private void OnEnable()
     {
         InstanceId = GetInstanceID();
-        PixelsForGlory.RayTracingPlugin.AddLight(InstanceId,
+        _registeredWithRayTracer = (PixelsForGlory.RayTracingPlugin.AddLight(InstanceId,
                                                  transform.position.x, transform.position.y, transform.position.z,
                                                  _light.color.r, _light.color.g, _light.color.b,
                                                  _light.bounceIntensity,
@@ -36,9 +45,16 @@ class RayTraceableLight : MonoBehaviour
                                                  _light.range,
                                                  _light.spotAngle,
                                                  (int)_light.type,
-                                                 _light.enabled);
-        UpdateLightData();
-        _lastLightHash = _light.GetHashCode();
+                                                 _light.enabled) > 0);
+
+        _lastPosition = transform.position;
+        _lastColor = _light.color;
+        _lastBounceIntensity = _light.bounceIntensity;
+        _lastIintensity = _light.intensity;
+        _lastRange = _light.range;
+        _lastSpotAngle = _light.spotAngle;
+        _lastType = _light.type;
+        _lastEnabled = _light.enabled;
     }
 
     private void Update()
@@ -54,13 +70,29 @@ class RayTraceableLight : MonoBehaviour
 
     private void OnDestroy()
     {
-        PixelsForGlory.RayTracingPlugin.RemoveLight(InstanceId);
+        if(_registeredWithRayTracer)
+        {
+            PixelsForGlory.RayTracingPlugin.RemoveLight(InstanceId);
+        }
+        
     }
 
     private void UpdateLightData()
     {
-
-        PixelsForGlory.RayTracingPlugin.UpdateLight(InstanceId,
+        if(_registeredWithRayTracer &&
+            (
+                _lastPosition        != transform.position       ||
+                _lastColor           != _light.color             ||
+                _lastBounceIntensity != _light.bounceIntensity   ||
+                _lastIintensity      !=_light.intensity          ||
+                _lastRange           != _light.range             ||
+                _lastSpotAngle       != _light.spotAngle         ||
+                _lastType            != _light.type              ||
+                _lastEnabled         != _light.enabled
+            )
+        )
+        {
+            PixelsForGlory.RayTracingPlugin.UpdateLight(InstanceId,
                                                     transform.position.x, transform.position.y, transform.position.z,
                                                     _light.color.r, _light.color.g, _light.color.b,
                                                     _light.bounceIntensity,
@@ -69,7 +101,16 @@ class RayTraceableLight : MonoBehaviour
                                                     _light.spotAngle,
                                                     (int)_light.type,
                                                     _light.enabled);
-        _lastLightHash = _light.GetHashCode();
+
+            _lastPosition           = transform.position;
+            _lastColor              = _light.color;
+            _lastBounceIntensity    = _light.bounceIntensity;
+            _lastIintensity         = _light.intensity;
+            _lastRange              = _light.range;
+            _lastSpotAngle          = _light.spotAngle;
+            _lastType               = _light.type;
+            _lastEnabled            = _light.enabled;
+        }
     }
 }
 

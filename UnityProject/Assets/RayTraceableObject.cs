@@ -23,6 +23,11 @@ class RayTraceableObject : MonoBehaviour
         
     }
 
+    private Matrix4x4 _lastLocalToWorldMatrix;
+
+    private bool _sharedMeshRegisteredWithRayTracer = false;
+    private bool _meshInstanceRegisteredWithRayTracer = false;
+
     private void OnEnable()
     {
         InstanceId = GetInstanceID();
@@ -33,12 +38,18 @@ class RayTraceableObject : MonoBehaviour
 
     private void Update()
     {
-        if(transform.hasChanged)
+        if (_meshInstanceRegisteredWithRayTracer)
         {
+            // Only update tlas instance if the transform has changed
             var l2wMatrix = transform.localToWorldMatrix;
-            var l2wMatrixHandle = GCHandle.Alloc(l2wMatrix, GCHandleType.Pinned);
-            PixelsForGlory.RayTracingPlugin.UpdateTlasInstance(InstanceId, l2wMatrixHandle.AddrOfPinnedObject());
-            l2wMatrixHandle.Free();
+            if (l2wMatrix != _lastLocalToWorldMatrix)
+            {
+                var l2wMatrixHandle = GCHandle.Alloc(l2wMatrix, GCHandleType.Pinned);
+                PixelsForGlory.RayTracingPlugin.UpdateTlasInstance(InstanceId, l2wMatrixHandle.AddrOfPinnedObject());
+                l2wMatrixHandle.Free();
+
+                _lastLocalToWorldMatrix = l2wMatrix;
+            }
         }
     }
 
@@ -62,13 +73,13 @@ class RayTraceableObject : MonoBehaviour
         var uvsHandle = GCHandle.Alloc(uvs, GCHandleType.Pinned);
         var indicesHandle = GCHandle.Alloc(indices, GCHandleType.Pinned);
 
-        PixelsForGlory.RayTracingPlugin.AddSharedMesh(SharedMeshInstanceId,
-                                                      verticesHandle.AddrOfPinnedObject(),
-                                                      normalsHandle.AddrOfPinnedObject(),
-                                                      uvsHandle.AddrOfPinnedObject(),
-                                                      vertices.Length,
-                                                      indicesHandle.AddrOfPinnedObject(),
-                                                      indices.Length);
+        _sharedMeshRegisteredWithRayTracer = (PixelsForGlory.RayTracingPlugin.AddSharedMesh(SharedMeshInstanceId,
+                                                                                            verticesHandle.AddrOfPinnedObject(),
+                                                                                            normalsHandle.AddrOfPinnedObject(),
+                                                                                            uvsHandle.AddrOfPinnedObject(),
+                                                                                            vertices.Length,
+                                                                                            indicesHandle.AddrOfPinnedObject(),
+                                                                                            indices.Length) > 0);
 
         verticesHandle.Free();
         normalsHandle.Free();
@@ -78,24 +89,30 @@ class RayTraceableObject : MonoBehaviour
 
     private void SendInstanceToPlugin()
     {
-        var l2wMatrix = transform.localToWorldMatrix;
-        var l2wMatrixHandle = GCHandle.Alloc(l2wMatrix, GCHandleType.Pinned);
+        if (_sharedMeshRegisteredWithRayTracer)
+        {
+            var l2wMatrix = transform.localToWorldMatrix;
+            var l2wMatrixHandle = GCHandle.Alloc(l2wMatrix, GCHandleType.Pinned);
 
-        //Debug.Log("SendInstanceToPlugin");
-        //Debug.Log($"{l2wMatrix[0,0]} {l2wMatrix[0,1]} {l2wMatrix[0,2]} {l2wMatrix[0,3]}");
-        //Debug.Log($"{l2wMatrix[1,0]} {l2wMatrix[1,1]} {l2wMatrix[1,2]} {l2wMatrix[1,3]}");
-        //Debug.Log($"{l2wMatrix[2,0]} {l2wMatrix[2,1]} {l2wMatrix[2,2]} {l2wMatrix[2,3]}");
-        //Debug.Log($"{l2wMatrix[3,0]} {l2wMatrix[3,1]} {l2wMatrix[3,2]} {l2wMatrix[3,3]}");
-        //Debug.Log("--------------------");
+            //Debug.Log("SendInstanceToPlugin");
+            //Debug.Log($"{l2wMatrix[0,0]} {l2wMatrix[0,1]} {l2wMatrix[0,2]} {l2wMatrix[0,3]}");
+            //Debug.Log($"{l2wMatrix[1,0]} {l2wMatrix[1,1]} {l2wMatrix[1,2]} {l2wMatrix[1,3]}");
+            //Debug.Log($"{l2wMatrix[2,0]} {l2wMatrix[2,1]} {l2wMatrix[2,2]} {l2wMatrix[2,3]}");
+            //Debug.Log($"{l2wMatrix[3,0]} {l2wMatrix[3,1]} {l2wMatrix[3,2]} {l2wMatrix[3,3]}");
+            //Debug.Log("--------------------");
 
-        PixelsForGlory.RayTracingPlugin.AddTlasInstance(InstanceId, SharedMeshInstanceId, l2wMatrixHandle.AddrOfPinnedObject());
+            _meshInstanceRegisteredWithRayTracer = (PixelsForGlory.RayTracingPlugin.AddTlasInstance(InstanceId, SharedMeshInstanceId, l2wMatrixHandle.AddrOfPinnedObject()) > 0);
 
-        l2wMatrixHandle.Free();
+            l2wMatrixHandle.Free();
+        }
     }
 
     private void RemoveInstanceFromPlugin()
     {
-        PixelsForGlory.RayTracingPlugin.RemoveTlasInstance(InstanceId);
+        if (_meshInstanceRegisteredWithRayTracer)
+        {
+            PixelsForGlory.RayTracingPlugin.RemoveTlasInstance(InstanceId);
+        }
     }
 }
 

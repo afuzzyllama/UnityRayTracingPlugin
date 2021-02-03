@@ -149,11 +149,11 @@ namespace PixelsForGlory::Vulkan
         void Shutdown();
 
 #pragma region RayTracerAPI
-        virtual void SetShaderFolder(std::string shaderFolder);
+        virtual void SetShaderFolder(std::wstring shaderFolder);
         virtual int SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, void* textureHandle);
         virtual bool ProcessDeviceEvent(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces);
-        virtual SharedMeshResult AddSharedMesh(int sharedMeshInstanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount);
-        virtual void AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, float* l2wMatrix);
+        virtual AddResourceResult AddSharedMesh(int sharedMeshInstanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount);
+        virtual AddResourceResult AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, float* l2wMatrix);
         virtual void UpdateTlasInstance(int gameObjectInstanceId, float* l2wMatrix);
         virtual void RemoveTlasInstance(int gameObjectInstanceId);
         virtual void BuildTlas();
@@ -161,7 +161,7 @@ namespace PixelsForGlory::Vulkan
         virtual void ResetPipeline();
         virtual void UpdateCamera(int cameraInstanceId, float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov);
         virtual void UpdateSceneData(float* color);
-        virtual void AddLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled);
+        virtual AddResourceResult AddLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled);
         virtual void UpdateLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled);
         virtual void RemoveLight(int lightInstanceId);
         virtual void TraceRays(int cameraInstanceId);
@@ -220,7 +220,7 @@ namespace PixelsForGlory::Vulkan
 
 #pragma region ShaderResources
 
-       std::string shaderFolder_;
+       std::wstring shaderFolder_;
        
        Vulkan::ShaderBindingTable shaderBindingTable_;
 

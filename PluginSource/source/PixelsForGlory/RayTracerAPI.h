@@ -14,7 +14,7 @@ namespace PixelsForGlory
     {
     public:
 
-        enum class SharedMeshResult
+        enum class AddResourceResult
         {
             Error         = 0,
             Success       = 1,
@@ -26,7 +26,7 @@ namespace PixelsForGlory
         /// <summary>
         /// Set the shader folder to pull shaders from
         /// </summary>
-        virtual void SetShaderFolder(std::string shaderFolder) = 0;
+        virtual void SetShaderFolder(std::wstring shaderFolder) = 0;
 
         /// <summary>
         /// Creates or updates a camera render target
@@ -58,7 +58,7 @@ namespace PixelsForGlory
         /// <param name="uvCount"></param>
         /// <param name="indices"></param>
         /// <param name="indexCount"></param>
-        virtual SharedMeshResult AddSharedMesh(int sharedMeshInstanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount) = 0;
+        virtual AddResourceResult AddSharedMesh(int sharedMeshInstanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount) = 0;
 
         /// <summary>
         /// Add transform for an instance to be build on the tlas
@@ -67,7 +67,7 @@ namespace PixelsForGlory
         /// <param name="meshInstanceId"></param>
         /// <param name="sharedMeshInstanceId"></param>
         /// <param name="l2wMatrix"></param>
-        virtual void AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, float* l2wMatrix) = 0;
+        virtual AddResourceResult AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, float* l2wMatrix) = 0;
 
         virtual void UpdateTlasInstance(int gameObjectInstanceId, float* l2wMatrix) = 0;
             
@@ -108,7 +108,7 @@ namespace PixelsForGlory
         /// <param name="color"></param>
         virtual void UpdateSceneData(float* color) = 0;
 
-        virtual void AddLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled) = 0;
+        virtual AddResourceResult AddLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled) = 0;
 
         virtual void UpdateLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled) = 0;
 

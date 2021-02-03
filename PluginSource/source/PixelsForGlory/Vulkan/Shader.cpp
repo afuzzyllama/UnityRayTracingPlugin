@@ -15,7 +15,7 @@ namespace PixelsForGlory::Vulkan
         Destroy();
     }
 
-    bool Shader::LoadFromFile(const char* fileName)
+    bool Shader::LoadFromFile(const wchar_t* fileName)
     {
         bool result = false;
 
@@ -45,7 +45,8 @@ namespace PixelsForGlory::Vulkan
         }
         else
         {
-            PFG_EDITORLOGERROR("Cannot open shader file: " + std::string(fileName));
+            auto error_msg = L"Cannot open shader file: " + std::wstring(fileName);
+            PFG_EDITORLOGERRORW(error_msg);
             return false;
         }
 

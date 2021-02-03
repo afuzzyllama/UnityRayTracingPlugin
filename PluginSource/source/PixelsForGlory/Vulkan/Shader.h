@@ -13,7 +13,7 @@ namespace PixelsForGlory::Vulkan
         /// </summary>
         /// <param name="fileName"></param>
         /// <returns></returns>
-        bool LoadFromFile(const char* fileName);
+        bool LoadFromFile(const wchar_t* fileName);
 
         /// <summary>
         /// Destory shader

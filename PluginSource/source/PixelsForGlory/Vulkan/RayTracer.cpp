@@ -480,17 +480,17 @@ namespace PixelsForGlory::Vulkan
         return true;
     }
 
-    void RayTracer::SetShaderFolder(std::string shaderFolder)
+    void RayTracer::SetShaderFolder(std::wstring shaderFolder)
     {
         shaderFolder_ = shaderFolder;
         
 
         if (shaderFolder_.back() != '/' || shaderFolder_.back() != '\\')
         {
-            shaderFolder_ = shaderFolder_ + "/";
+            shaderFolder_ = shaderFolder_ + L"/";
         }
 
-        PFG_EDITORLOG("Shader folder set to: " + shaderFolder_);
+        PFG_EDITORLOGW(L"Shader folder set to: " + shaderFolder_);
     }
 
     int RayTracer::SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, void* textureHandle)
@@ -569,12 +569,12 @@ namespace PixelsForGlory::Vulkan
         return 1;
     }
         
-    RayTracerAPI::SharedMeshResult RayTracer::AddSharedMesh(int sharedMeshInstanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount)
+    RayTracerAPI::AddResourceResult RayTracer::AddSharedMesh(int sharedMeshInstanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount)
     { 
         // Check that this shared mesh hasn't been added yet
         if (sharedMeshesPool_.find(sharedMeshInstanceId) != sharedMeshesPool_.in_use_end())
         {
-            return RayTracerAPI::SharedMeshResult::AlreadyExists;
+            return RayTracerAPI::AddResourceResult::AlreadyExists;
         }
       
         // We can only add tris, make sure the index count reflects this
@@ -645,7 +645,7 @@ namespace PixelsForGlory::Vulkan
         
         if (!success)
         {
-            return RayTracerAPI::SharedMeshResult::Error;
+            return RayTracerAPI::AddResourceResult::Error;
         }
     
         // Creating buffers was successful.  Move onto getting the data in there
@@ -703,12 +703,17 @@ namespace PixelsForGlory::Vulkan
     
         PFG_EDITORLOG("Added mesh (sharedMeshInstanceId: " + std::to_string(sharedMeshInstanceId) + ")");
     
-        return RayTracerAPI::SharedMeshResult::Success;
+        return RayTracerAPI::AddResourceResult::Success;
     
     }
 
-    void RayTracer::AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, float* l2wMatrix)
+    RayTracerAPI::AddResourceResult RayTracer::AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, float* l2wMatrix)
     { 
+        if (meshInstancePool_.find(gameObjectInstanceId) != meshInstancePool_.in_use_end())
+        {
+            return RayTracerAPI::AddResourceResult::AlreadyExists;
+        }
+
         meshInstancePool_.add(gameObjectInstanceId, RayTracerMeshInstanceData());
         auto& instance = meshInstancePool_[gameObjectInstanceId];
 
@@ -720,6 +725,8 @@ namespace PixelsForGlory::Vulkan
 
         // If we added an instance, we need to rebuild the tlas
         rebuildTlas_ = true;
+
+        return RayTracerAPI::AddResourceResult::Success;
     }
 
     void RayTracer::UpdateTlasInstance(int gameObjectInstanceId, float* l2wMatrix)
@@ -1103,8 +1110,13 @@ namespace PixelsForGlory::Vulkan
         sceneData_.Unmap();
     }
 
-    void RayTracer::AddLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled)
+    RayTracerAPI::AddResourceResult RayTracer::AddLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled)
     {
+        if (lightsPool_.find(lightInstanceId) != lightsPool_.in_use_end())
+        {
+            return RayTracerAPI::AddResourceResult::AlreadyExists;
+        }
+
         auto buffer = std::make_unique<Vulkan::Buffer>();
 
         lightsPool_.add(lightInstanceId, std::move(buffer));
@@ -1121,6 +1133,8 @@ namespace PixelsForGlory::Vulkan
 
         UpdateLight(lightInstanceId, x, y, z, r, g, b, bounceIntensity, intensity, range, spotAngle, type, enabled);
         PFG_EDITORLOG("Added light (lightInstanceId: " + std::to_string(lightInstanceId) + ")");
+
+        return RayTracerAPI::AddResourceResult::Success;
     }
 
     void RayTracer::UpdateLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled)
@@ -1611,11 +1625,11 @@ namespace PixelsForGlory::Vulkan
         Vulkan::Shader shadowChit(device_);
         Vulkan::Shader shadowMiss(device_);
 
-        rayGenShader.LoadFromFile((shaderFolder_ + "ray_gen.bin").c_str());
-        rayChitShader.LoadFromFile((shaderFolder_ + "ray_chit.bin").c_str());
-        rayMissShader.LoadFromFile((shaderFolder_ + "ray_miss.bin").c_str());
-        shadowChit.LoadFromFile((shaderFolder_ + "shadow_ray_chit.bin").c_str());
-        shadowMiss.LoadFromFile((shaderFolder_ + "shadow_ray_miss.bin").c_str());
+        rayGenShader.LoadFromFile((shaderFolder_ + L"ray_gen.bin").c_str());
+        rayChitShader.LoadFromFile((shaderFolder_ + L"ray_chit.bin").c_str());
+        rayMissShader.LoadFromFile((shaderFolder_ + L"ray_miss.bin").c_str());
+        shadowChit.LoadFromFile((shaderFolder_ + L"shadow_ray_chit.bin").c_str());
+        shadowMiss.LoadFromFile((shaderFolder_ + L"shadow_ray_miss.bin").c_str());
 
         // Destroy any existing shader table before creating a new one
         shaderBindingTable_.Destroy();
