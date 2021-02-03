@@ -18,7 +18,7 @@ namespace PixelsForGlory::Vulkan
         /// <param name="usage"></param>
         /// <param name="memoryProperties"></param>
         /// <returns></returns>
-        VkResult Create(VkDevice device, VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryProperties);
+        VkResult Create(std::string name, VkDevice device, VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryProperties);
 
         /// <summary>
         /// Destroy buffer
@@ -60,5 +60,7 @@ namespace PixelsForGlory::Vulkan
         VkBuffer        buffer_;
         VkDeviceMemory  memory_;
         VkDeviceSize    size_;
+
+        std::string name_;
     };
 }

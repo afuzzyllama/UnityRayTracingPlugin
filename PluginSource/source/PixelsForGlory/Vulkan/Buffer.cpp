@@ -12,12 +12,14 @@ namespace PixelsForGlory::Vulkan
         , buffer_(VK_NULL_HANDLE)
         , memory_(VK_NULL_HANDLE)
         , size_(0)
+        , name_("[NOT CREATED]")
     {}
 
     Buffer::~Buffer() {
     }
 
-    VkResult Buffer::Create(VkDevice device, VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryProperties) {
+    VkResult Buffer::Create(std::string name, VkDevice device, VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryProperties) {
+        name_ = name;
         device_ = device;
 
         VkResult result = VK_SUCCESS;
@@ -82,11 +84,11 @@ namespace PixelsForGlory::Vulkan
             return;
         }
 
-        if (buffer_) {
+        if (buffer_ != VK_NULL_HANDLE) {
             vkDestroyBuffer(device_, buffer_, nullptr);
             buffer_ = VK_NULL_HANDLE;
         }
-        if (memory_) {
+        if (memory_ != VK_NULL_HANDLE) {
             vkFreeMemory(device_, memory_, nullptr);
             memory_ = VK_NULL_HANDLE;
         }

@@ -76,39 +76,43 @@ namespace PixelsForGlory::Vulkan
     {
         RayTracerMeshSharedData()
             : sharedMeshInstanceId(-1)
-            , faceDataIndex(-1)
-            , vertexAttributeIndex(-1)
             , vertexCount(0)
             , indexCount(0)
+            , blas(RayTracerAccelerationStructure())
         {}
 
         int sharedMeshInstanceId;
-
-        int faceDataIndex;
-        int vertexAttributeIndex;
 
         int vertexCount;
         int indexCount;
 
         Vulkan::Buffer vertexBuffer;          // Stores: vertex : vec3 
         Vulkan::Buffer indexBuffer;           // Stores: index : int
+        Vulkan::Buffer attributesBuffer;      // Stores: ShaderVertexAttribute Data
+        Vulkan::Buffer facesBuffer;           // Stores: ShaderFacesData
 
         RayTracerAccelerationStructure blas;
     };
-   
+    
     struct RayTracerMeshInstanceData
     {
         RayTracerMeshInstanceData()
-            : sharedMeshIndex(-1)
-            , localToWorld(mat4())
-            , gameObjectInstanceId(0)
+            : gameObjectInstanceId(0)
+            , sharedMeshInstanceId(0)
+            , localToWorld(mat4()) 
         {}
 
-        int gameObjectInstanceId;
-        int sharedMeshIndex;
-        mat4 localToWorld;
+        uint32_t  gameObjectInstanceId;
+        uint32_t  sharedMeshInstanceId;
+        mat4     localToWorld;
     };
-    
+
+    struct RayTracerGarbageBuffer
+    {
+        std::unique_ptr<Vulkan::Buffer> buffer;
+        uint64_t frameCount;
+    };
+
     class RayTracer : public RayTracerAPI
     {
     public:
@@ -148,16 +152,18 @@ namespace PixelsForGlory::Vulkan
         virtual void SetShaderFolder(std::string shaderFolder);
         virtual int SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, void* textureHandle);
         virtual bool ProcessDeviceEvent(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces);
-        virtual int GetSharedMeshIndex(int sharedMeshInstanceId);
-        virtual int AddSharedMesh(int instanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount);
-        virtual int GetTlasInstanceIndex(int gameObjectInstanceId);
-        virtual int AddTlasInstance(int gameObjectInstanceId, int sharedMeshIndex, float* l2wMatrix);
-        virtual void RemoveTlasInstance(int meshInstanceIndex);
+        virtual SharedMeshResult AddSharedMesh(int sharedMeshInstanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount);
+        virtual void AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, float* l2wMatrix);
+        virtual void UpdateTlasInstance(int gameObjectInstanceId, float* l2wMatrix);
+        virtual void RemoveTlasInstance(int gameObjectInstanceId);
         virtual void BuildTlas();
         virtual void Prepare();
         virtual void ResetPipeline();
         virtual void UpdateCamera(int cameraInstanceId, float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov);
         virtual void UpdateSceneData(float* color);
+        virtual void AddLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled);
+        virtual void UpdateLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled);
+        virtual void RemoveLight(int lightInstanceId);
         virtual void TraceRays(int cameraInstanceId);
 #pragma endregion RayTracerAPI
 
@@ -191,21 +197,17 @@ namespace PixelsForGlory::Vulkan
 
 #pragma region SharedMeshMembers
 
-       resourcePool<std::unique_ptr<RayTracerMeshSharedData>> sharedMeshesPool_;
-
-       // ShaderConstants -> Buffer that represents ShaderVertexAttribute 
-       resourcePool<Vulkan::Buffer> sharedMeshAttributesPool_;
-       std::vector<VkDescriptorBufferInfo> sharedMeshAttributesBufferInfos_;
-
-       // SharedConstants -> Buffer that represents ShaderFace
-       resourcePool<Vulkan::Buffer> sharedMeshFacesPool_;
-       std::vector<VkDescriptorBufferInfo> sharedMeshFacesBufferInfos_;
+        resourcePool<int, std::unique_ptr<RayTracerMeshSharedData>> sharedMeshesPool_;
 
 #pragma endregion SharedMeshMembers
 
 #pragma region MeshInstanceMembers
 
-       resourcePool<std::unique_ptr<RayTracerMeshInstanceData>> meshInstancePool_;
+       // meshInstanceID -> Buffer that represents ShaderMeshInstanceData
+       resourcePool<int, RayTracerMeshInstanceData> meshInstancePool_;
+       
+       std::vector<VkDescriptorBufferInfo> meshInstancesAttributesBufferInfos_;
+       std::vector<VkDescriptorBufferInfo> meshInstancesFacesBufferInfos_;
        
        // Buffer that represents VkAccelerationStructureInstanceKHR
        Vulkan::Buffer instancesAccelerationStructuresBuffer_;
@@ -226,9 +228,17 @@ namespace PixelsForGlory::Vulkan
        Vulkan::Buffer sceneData_;
        VkDescriptorBufferInfo sceneBufferInfo_;
 
+       Vulkan::Buffer noLight_;
+       VkDescriptorBufferInfo noLightBufferInfo_;
+
+       resourcePool<int, std::unique_ptr<Vulkan::Buffer>> lightsPool_;
+       std::vector<VkDescriptorBufferInfo> lightsBufferInfos_;
+
        std::vector<VkDescriptorSetLayout> descriptorSetLayouts_;
        VkDescriptorPool                   descriptorPool_;
 
+       std::vector<RayTracerGarbageBuffer> garbageBuffers_;
+       
 #pragma endregion ShaderResources
 
 #pragma region PipelineResources
@@ -262,7 +272,7 @@ namespace PixelsForGlory::Vulkan
         /// Build a bottom level acceleration structure for an added shared mesh
         /// </summary>
         /// <param name="sharedMeshPoolIndex"></param>
-        void BuildBlas(int sharedMeshPoolIndex);
+        void BuildBlas(int sharedMeshInstanceId);
 
         /// <summary>
         /// Create descriptor set layouts for shaders
@@ -300,5 +310,7 @@ namespace PixelsForGlory::Vulkan
         /// Update the descriptor sets for the shader
         /// </summary>
         void UpdateDescriptorSets(int cameraInstanceId);
+
+        void GarbageCollect(uint64_t frameCount);
     };
 }

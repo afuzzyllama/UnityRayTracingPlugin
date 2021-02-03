@@ -178,6 +178,7 @@ namespace PixelsForGlory::Vulkan
 
         VkResult error =
             sbtBuffer_.Create(
+                "sbt",
                 device,
                 physicalDeviceMemoryProperties,
                 sbtSize,

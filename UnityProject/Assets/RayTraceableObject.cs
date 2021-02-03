@@ -6,9 +6,8 @@ using UnityEngine;
 [RequireComponent(typeof(MeshFilter))]
 class RayTraceableObject : MonoBehaviour
 {
+    [ReadOnly] public int InstanceId;
     [ReadOnly] public int SharedMeshInstanceId;
-    [ReadOnly] public int SharedMeshIndex;
-    [ReadOnly] public int MeshInstanceIndex;
 
     private MeshFilter _meshFilterRef = null;
     private MeshFilter _meshFilter
@@ -26,9 +25,21 @@ class RayTraceableObject : MonoBehaviour
 
     private void OnEnable()
     {
+        InstanceId = GetInstanceID();
         SharedMeshInstanceId = _meshFilter.sharedMesh.GetInstanceID();
         SendMeshToPlugin();
         SendInstanceToPlugin();
+    }
+
+    private void Update()
+    {
+        if(transform.hasChanged)
+        {
+            var l2wMatrix = transform.localToWorldMatrix;
+            var l2wMatrixHandle = GCHandle.Alloc(l2wMatrix, GCHandleType.Pinned);
+            PixelsForGlory.RayTracingPlugin.UpdateTlasInstance(InstanceId, l2wMatrixHandle.AddrOfPinnedObject());
+            l2wMatrixHandle.Free();
+        }
     }
 
     private void OnDisable()
@@ -38,14 +49,6 @@ class RayTraceableObject : MonoBehaviour
     }
     private void SendMeshToPlugin()
     {
-        SharedMeshIndex = PixelsForGlory.RayTracingPlugin.GetSharedMeshIndex(_meshFilter.sharedMesh.GetInstanceID());
-        
-        if(SharedMeshIndex >= 0)
-        { 
-            // Nothing to do
-            return;
-        }
-
         var vertices = _meshFilter.sharedMesh.vertices;
         var normals = _meshFilter.sharedMesh.normals;
         var uvs = _meshFilter.sharedMesh.uv;
@@ -59,14 +62,13 @@ class RayTraceableObject : MonoBehaviour
         var uvsHandle = GCHandle.Alloc(uvs, GCHandleType.Pinned);
         var indicesHandle = GCHandle.Alloc(indices, GCHandleType.Pinned);
 
-        SharedMeshIndex = PixelsForGlory.RayTracingPlugin.AddSharedMesh(
-                                            _meshFilter.sharedMesh.GetInstanceID(),
-                                            verticesHandle.AddrOfPinnedObject(),
-                                            normalsHandle.AddrOfPinnedObject(),
-                                            uvsHandle.AddrOfPinnedObject(),
-                                            vertices.Length,
-                                            indicesHandle.AddrOfPinnedObject(),
-                                            indices.Length);
+        PixelsForGlory.RayTracingPlugin.AddSharedMesh(SharedMeshInstanceId,
+                                                      verticesHandle.AddrOfPinnedObject(),
+                                                      normalsHandle.AddrOfPinnedObject(),
+                                                      uvsHandle.AddrOfPinnedObject(),
+                                                      vertices.Length,
+                                                      indicesHandle.AddrOfPinnedObject(),
+                                                      indices.Length);
 
         verticesHandle.Free();
         normalsHandle.Free();
@@ -76,17 +78,6 @@ class RayTraceableObject : MonoBehaviour
 
     private void SendInstanceToPlugin()
     {
-        MeshInstanceIndex = PixelsForGlory.RayTracingPlugin.GetTlasInstanceIndex(GetInstanceID());
-
-        if (MeshInstanceIndex >= 0)
-        {
-            // Nothing to do
-            return;
-        }
-
-        // Send instance information to plugin ONCE
-        
-
         var l2wMatrix = transform.localToWorldMatrix;
         var l2wMatrixHandle = GCHandle.Alloc(l2wMatrix, GCHandleType.Pinned);
 
@@ -97,14 +88,14 @@ class RayTraceableObject : MonoBehaviour
         //Debug.Log($"{l2wMatrix[3,0]} {l2wMatrix[3,1]} {l2wMatrix[3,2]} {l2wMatrix[3,3]}");
         //Debug.Log("--------------------");
 
-        MeshInstanceIndex = PixelsForGlory.RayTracingPlugin.AddTlasInstance(GetInstanceID(), SharedMeshIndex, l2wMatrixHandle.AddrOfPinnedObject());
+        PixelsForGlory.RayTracingPlugin.AddTlasInstance(InstanceId, SharedMeshInstanceId, l2wMatrixHandle.AddrOfPinnedObject());
 
         l2wMatrixHandle.Free();
     }
 
     private void RemoveInstanceFromPlugin()
     {
-        PixelsForGlory.RayTracingPlugin.RemoveTlasInstance(MeshInstanceIndex);
+        PixelsForGlory.RayTracingPlugin.RemoveTlasInstance(InstanceId);
     }
 }
 

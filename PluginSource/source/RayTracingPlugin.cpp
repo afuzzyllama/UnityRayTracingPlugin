@@ -1,4 +1,3 @@
-// Example low level rendering Unity plugin
 #include "PlatformBase.h"
 #include "PixelsForGlory/RayTracerAPI.h"
 
@@ -11,25 +10,6 @@
 
 #define PLUGIN_CHECK()  if (s_CurrentAPI == nullptr) { return; }
 #define PLUGIN_CHECK_RETURN(returnValue)  if (s_CurrentAPI == nullptr) { return returnValue; }
-
-// --------------------------------------------------------------------------
-// SetTimeFromUnity, an example function we export which is called by one of the scripts.
-
-static float g_Time;
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetTimeFromUnity (float t) { g_Time = t; }
-
-static void* g_TextureHandle = nullptr;
-static int   g_TextureWidth = 0;
-static int   g_TextureHeight = 0;
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetTargetTexture(void* textureHandle, int width, int height)
-{
-    // A script calls this at initialization time; just remember the texture pointer here.
-    // Will update texture pixels each frame from the plugin rendering event (texture update
-    // needs to happen on the rendering thread).
-    g_TextureHandle = textureHandle;
-    g_TextureWidth = width;
-    g_TextureHeight = height;
-}
 
 // --------------------------------------------------------------------------
 // UnitySetInterfaces
@@ -59,9 +39,6 @@ extern "C" void    UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IU
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload()
 {
     s_Graphics->UnregisterDeviceEventCallback(OnGraphicsDeviceEvent);
-
-    // Clear debug callback because it will freeze Application.Reload
-    //ClearDebugCallback();
 }
 
 // --------------------------------------------------------------------------
@@ -114,8 +91,6 @@ static void UNITY_INTERFACE_API OnEvent(int eventId)
     PLUGIN_CHECK();
 }
 
-
-
 static void UNITY_INTERFACE_API OnEventAndData(int eventId, void* data)
 {
     // Unknown / unsupported graphics device type? Do nothing
@@ -147,40 +122,32 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetRenderTarget(int ca
     return s_CurrentAPI->SetRenderTarget(cameraInstanceId, unityTextureFormat, width, height, textureHandle);
 }
 
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetSharedMeshIndex(int sharedMeshInstanceId)
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddSharedMesh(int sharedMeshInstanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount)
 {
     PLUGIN_CHECK_RETURN(-1);
 
-    return s_CurrentAPI->GetSharedMeshIndex(sharedMeshInstanceId);
+    return (int)s_CurrentAPI->AddSharedMesh(sharedMeshInstanceId, verticesArray, normalsArray, uvsArray, vertexCount, indicesArray, indexCount);
 }
 
-
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddSharedMesh(int instanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount)
-{
-    PLUGIN_CHECK_RETURN(-1);
-
-    return s_CurrentAPI->AddSharedMesh(instanceId, verticesArray, normalsArray, uvsArray, vertexCount, indicesArray, indexCount);
-}
-
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetTlasInstanceIndex(int gameObjectInstanceId)
-{
-    PLUGIN_CHECK_RETURN(-1);
-
-    return s_CurrentAPI->GetTlasInstanceIndex(gameObjectInstanceId);
-}
-
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddTlasInstance(int gameObjectInstanceId, int sharedMeshIndex, float* l2wMatrix)
-{
-    PLUGIN_CHECK_RETURN(-1);
-
-    return s_CurrentAPI->AddTlasInstance(gameObjectInstanceId, sharedMeshIndex, l2wMatrix);
-}
-
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RemoveTlasInstance(int meshInstanceIndex)
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, float* l2wMatrix)
 {
     PLUGIN_CHECK();
 
-    s_CurrentAPI->RemoveTlasInstance(meshInstanceIndex);
+    return s_CurrentAPI->AddTlasInstance(gameObjectInstanceId, sharedMeshInstanceId, l2wMatrix);
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateTlasInstance(int gameObjectInstanceId, float* l2wMatrix)
+{
+    PLUGIN_CHECK();
+
+    return s_CurrentAPI->UpdateTlasInstance(gameObjectInstanceId, l2wMatrix);
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RemoveTlasInstance(int gameObjectInstanceId)
+{
+    PLUGIN_CHECK();
+
+    s_CurrentAPI->RemoveTlasInstance(gameObjectInstanceId);
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API BuildTlas()
@@ -216,6 +183,27 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateSceneData(float
     PLUGIN_CHECK();
 
     s_CurrentAPI->UpdateSceneData(color);
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled)
+{
+    PLUGIN_CHECK();
+
+    return s_CurrentAPI->AddLight(lightInstanceId, x, y, z, r, g, b, bounceIntensity, intensity, range, spotAngle, type, enabled);
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled)
+{
+    PLUGIN_CHECK();
+
+    s_CurrentAPI->UpdateLight(lightInstanceId, x, y, z, r, g, b, bounceIntensity, intensity, range, spotAngle, type, enabled);
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RemoveLight(int lightInstanceId)
+{
+    PLUGIN_CHECK();
+
+    s_CurrentAPI->RemoveLight(lightInstanceId);
 }
 
 extern "C" UnityRenderingEvent UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetEventFunc()

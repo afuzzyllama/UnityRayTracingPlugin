@@ -78,6 +78,13 @@ namespace PixelsForGlory::Vulkan
         vkGetPhysicalDeviceMemoryProperties(physicalDevice, &PixelsForGlory::Vulkan::RayTracer::Instance().physicalDeviceMemoryProperties_);
     }
 
+    /// <summary>
+    /// Injects what is required for ray tracing into vkCreateInstance
+    /// </summary>
+    /// <param name="unityCreateInfo"></param>
+    /// <param name="unityAllocator"></param>
+    /// <param name="instance"></param>
+    /// <returns></returns>
     VkResult CreateInstance_RayTracer(const VkInstanceCreateInfo* unityCreateInfo, const VkAllocationCallbacks* unityAllocator, VkInstance* instance)
     {
         // Copy ApplicationInfo from Unity and force it up to Vulkan 1.2
@@ -160,6 +167,14 @@ namespace PixelsForGlory::Vulkan
         return result;
     }
 
+    /// <summary>
+    /// Injects what is required for ray tracing into vkCreateDevice
+    /// </summary>
+    /// <param name="physicalDevice"></param>
+    /// <param name="unityCreateInfo"></param>
+    /// <param name="unityAllocator"></param>
+    /// <param name="device"></param>
+    /// <returns></returns>
     VkResult CreateDevice_RayTracer(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo* unityCreateInfo, const VkAllocationCallbacks* unityAllocator, VkDevice* device)
     {
         ResolvePropertiesAndQueues_RayTracer(physicalDevice);
@@ -353,10 +368,12 @@ namespace PixelsForGlory::Vulkan
 
         for (auto itr = sharedMeshesPool_.pool_begin(); itr != sharedMeshesPool_.pool_end(); ++itr)
         {
-            auto const& mesh = (*itr);
+            auto& mesh = (*itr);
 
             mesh->vertexBuffer.Destroy();
             mesh->indexBuffer.Destroy();
+            mesh->attributesBuffer.Destroy();
+            mesh->facesBuffer.Destroy();
             
             if (mesh->blas.accelerationStructure != VK_NULL_HANDLE)
             {
@@ -365,16 +382,6 @@ namespace PixelsForGlory::Vulkan
                 mesh->blas.buffer.Destroy();
                 mesh->blas.deviceAddress = 0;
             }
-        }
-
-        for (auto i = sharedMeshAttributesPool_.pool_begin(); i != sharedMeshAttributesPool_.pool_end(); ++i)
-        {
-            (*i).Destroy();
-        }
-
-        for (auto i = sharedMeshFacesPool_.pool_begin(); i != sharedMeshFacesPool_.pool_end(); ++i)
-        {
-            (*i).Destroy();
         }
 
         instancesAccelerationStructuresBuffer_.Destroy();
@@ -562,51 +569,28 @@ namespace PixelsForGlory::Vulkan
         return 1;
     }
         
-    int RayTracer::GetSharedMeshIndex(int sharedMeshInstanceId) 
-    { 
-        for (auto itr = sharedMeshesPool_.in_use_begin(); itr != sharedMeshesPool_.in_use_end(); ++itr)
-        {
-            auto i = (*itr);
-            if (sharedMeshesPool_[i]->sharedMeshInstanceId == sharedMeshInstanceId)
-            {
-                return i;
-            }
-        }
-    
-        return -1;    
-    }
-
-    int RayTracer::AddSharedMesh(int instanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount) 
+    RayTracerAPI::SharedMeshResult RayTracer::AddSharedMesh(int sharedMeshInstanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount)
     { 
         // Check that this shared mesh hasn't been added yet
-        for (auto itr = sharedMeshesPool_.in_use_begin(); itr != sharedMeshesPool_.in_use_end(); ++itr)
+        if (sharedMeshesPool_.find(sharedMeshInstanceId) != sharedMeshesPool_.in_use_end())
         {
-            auto i = (*itr);
-            if (sharedMeshesPool_[i]->sharedMeshInstanceId == instanceId)
-            {
-                return i;
-            }
+            return RayTracerAPI::SharedMeshResult::AlreadyExists;
         }
-        
+      
         // We can only add tris, make sure the index count reflects this
         assert(indexCount % 3 == 0);
     
         auto sentMesh = std::make_unique<RayTracerMeshSharedData>();
         
         // Setup where we are going to store the shared mesh data and all data needed for shaders
-        sentMesh->sharedMeshInstanceId = instanceId;
+        sentMesh->sharedMeshInstanceId = sharedMeshInstanceId;
         sentMesh->vertexCount = vertexCount;
         sentMesh->indexCount = indexCount;
-
-        sentMesh->vertexAttributeIndex = sharedMeshAttributesPool_.get_next_index();
-        sentMesh->faceDataIndex = sharedMeshFacesPool_.get_next_index();
-    
-        Vulkan::Buffer& sentMeshAttributes = sharedMeshAttributesPool_[sentMesh->vertexAttributeIndex];
-        Vulkan::Buffer& sentMeshFaces = sharedMeshFacesPool_[sentMesh->faceDataIndex];
     
         // Setup buffers
         bool success = true;
         if (sentMesh->vertexBuffer.Create(
+                "vertexBuffer",
                 device_,
                 physicalDeviceMemoryProperties_,
                 sizeof(vec3) * sentMesh->vertexCount,
@@ -614,57 +598,61 @@ namespace PixelsForGlory::Vulkan
                 Vulkan::Buffer::kDefaultMemoryPropertyFlags) 
             != VK_SUCCESS)
         {
-            PFG_EDITORLOGERROR("Failed to create vertex buffer for shared mesh instance id " + std::to_string(instanceId));
+            PFG_EDITORLOGERROR("Failed to create vertex buffer for shared mesh instance id " + std::to_string(sharedMeshInstanceId));
             success = false;
         }
     
         if (sentMesh->indexBuffer.Create(
-            device_,
-            physicalDeviceMemoryProperties_,
-            sizeof(uint32_t) * sentMesh->indexCount,
-            VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-            Vulkan::Buffer::kDefaultMemoryPropertyFlags))
+                "indexBuffer",
+                device_,
+                physicalDeviceMemoryProperties_,
+                sizeof(uint32_t) * sentMesh->indexCount,
+                VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                Vulkan::Buffer::kDefaultMemoryPropertyFlags)
+            != VK_SUCCESS)
         {
-            PFG_EDITORLOGERROR("Failed to create index buffer for shared mesh instance id " + std::to_string(instanceId));
+            PFG_EDITORLOGERROR("Failed to create index buffer for shared mesh instance id " + std::to_string(sharedMeshInstanceId));
             success = false;
         }
     
-        if (sentMeshAttributes.Create(
-            device_,
+        if (sentMesh->attributesBuffer.Create(
+                "attributesBuffer",
+                device_,
                 physicalDeviceMemoryProperties_,
-                sizeof(ShaderVertexAttribute) * sentMesh->vertexCount,
+                sizeof(ShaderVertexAttributeData) * sentMesh->vertexCount,
                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                 Vulkan::Buffer::kDefaultMemoryPropertyFlags)
             != VK_SUCCESS)
         {
-            PFG_EDITORLOGERROR("Failed to create vertex attribute buffer for shared mesh instance id " + std::to_string(instanceId));
+            PFG_EDITORLOGERROR("Failed to create vertex attribute buffer for shared mesh instance id " + std::to_string(sharedMeshInstanceId));
             success = false;
         }
     
     
-        if (sentMeshFaces.Create(
-            device_,
-            physicalDeviceMemoryProperties_,
-            sizeof(ShaderFace) * sentMesh->indexCount / 3,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-            Vulkan::Buffer::kDefaultMemoryPropertyFlags)
+        if (sentMesh->facesBuffer.Create(
+                "facesBuffer",
+                device_,
+                physicalDeviceMemoryProperties_,
+                sizeof(ShaderFaceData) * sentMesh->indexCount / 3,
+                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                Vulkan::Buffer::kDefaultMemoryPropertyFlags)
             != VK_SUCCESS)
         {
-            PFG_EDITORLOGERROR("Failed to create face buffer for shared mesh instance id " + std::to_string(instanceId));
+            PFG_EDITORLOGERROR("Failed to create face buffer for shared mesh instance id " + std::to_string(sharedMeshInstanceId));
             success = false;
         }
     
         
         if (!success)
         {
-            return -1;
+            return RayTracerAPI::SharedMeshResult::Error;
         }
     
         // Creating buffers was successful.  Move onto getting the data in there
         auto vertices = reinterpret_cast<vec3*>(sentMesh->vertexBuffer.Map());
         auto indices = reinterpret_cast<uint32_t*>(sentMesh->indexBuffer.Map());
-        auto vertexAttributes = reinterpret_cast<ShaderVertexAttribute*>(sentMeshAttributes.Map()); 
-        auto faces = reinterpret_cast<ShaderFace*>(sentMeshFaces.Map());
+        auto vertexAttributes = reinterpret_cast<ShaderVertexAttributeData*>(sentMesh->attributesBuffer.Map());
+        auto faces = reinterpret_cast<ShaderFaceData*>(sentMesh->facesBuffer.Map());
         
         // verticesArray and normalsArray are size vertexCount * 3 since they actually represent an array of vec3
         // uvsArray is size vertexCount * 2 since it actually represents an array of vec2
@@ -704,56 +692,45 @@ namespace PixelsForGlory::Vulkan
         
         sentMesh->vertexBuffer.Unmap();
         sentMesh->indexBuffer.Unmap();
-        sentMeshAttributes.Unmap();
-        sentMeshFaces.Unmap();
+        sentMesh->attributesBuffer.Unmap();
+        sentMesh->facesBuffer.Unmap();
 
         // All done creating the data, get it added to the pool
-        int sharedMeshIndex = sharedMeshesPool_.add(std::move(sentMesh));
+        sharedMeshesPool_.add(sharedMeshInstanceId, std::move(sentMesh));
     
         // Build blas here so we don't have to do it later
-        BuildBlas(sharedMeshIndex);
+        BuildBlas(sharedMeshInstanceId);
     
-        PFG_EDITORLOG("Added mesh (sharedMeshInstanceId: " + std::to_string(instanceId) + ")");
+        PFG_EDITORLOG("Added mesh (sharedMeshInstanceId: " + std::to_string(sharedMeshInstanceId) + ")");
     
-        return sharedMeshIndex;
+        return RayTracerAPI::SharedMeshResult::Success;
     
     }
 
-    int RayTracer::GetTlasInstanceIndex(int gameObjectInstanceId)
-    {
-        for (auto itr = meshInstancePool_.in_use_begin(); itr != meshInstancePool_.in_use_end(); ++itr)
-        {
-            auto index = *itr;
-            if (meshInstancePool_[index]->gameObjectInstanceId == gameObjectInstanceId)
-            {
-                return index;
-            }
-        }
-
-        return -1;
-    }
-
-    int RayTracer::AddTlasInstance(int gameObjectInstanceId, int sharedMeshIndex, float* l2wMatrix) 
+    void RayTracer::AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, float* l2wMatrix)
     { 
-        auto instance = std::make_unique<RayTracerMeshInstanceData>();
+        meshInstancePool_.add(gameObjectInstanceId, RayTracerMeshInstanceData());
+        auto& instance = meshInstancePool_[gameObjectInstanceId];
 
-        instance->gameObjectInstanceId = gameObjectInstanceId;
-        instance->sharedMeshIndex = sharedMeshIndex;
-        FloatArrayToMatrix(l2wMatrix, instance->localToWorld);
-
-        int index = meshInstancePool_.add(std::move(instance));
-
-        PFG_EDITORLOG("Added mesh instance (sharedMeshIndex: " + std::to_string(sharedMeshIndex) + ")");
+        instance.gameObjectInstanceId = gameObjectInstanceId;
+        instance.sharedMeshInstanceId = sharedMeshInstanceId;
+        FloatArrayToMatrix(l2wMatrix, instance.localToWorld);
+        
+        PFG_EDITORLOG("Added mesh instance (gameObjectInstanceId: " + std::to_string(gameObjectInstanceId) + ", sharedMeshInstanceId: " + std::to_string(sharedMeshInstanceId) + ")");
 
         // If we added an instance, we need to rebuild the tlas
         rebuildTlas_ = true;
-
-        return index; 
     }
 
-    void RayTracer::RemoveTlasInstance(int meshInstanceIndex) 
+    void RayTracer::UpdateTlasInstance(int gameObjectInstanceId, float* l2wMatrix)
     {
-        meshInstancePool_.remove(meshInstanceIndex);
+        FloatArrayToMatrix(l2wMatrix, meshInstancePool_[gameObjectInstanceId].localToWorld);
+        updateTlas_ = true;
+    }
+
+    void RayTracer::RemoveTlasInstance(int gameObjectInstanceId)
+    {
+        meshInstancePool_.remove(gameObjectInstanceId);
 
         // If we added an instance, we need to rebuild the tlas
         rebuildTlas_ = true;
@@ -789,9 +766,11 @@ namespace PixelsForGlory::Vulkan
             uint32_t instanceAccelerationStructuresIndex = 0;
             for (auto i = meshInstancePool_.in_use_begin(); i != meshInstancePool_.in_use_end(); ++i)
             {
-                auto instanceIndex = (*i);
+                auto gameObjectInstanceId = (*i).first;
 
-                const auto& t = meshInstancePool_[instanceIndex]->localToWorld;
+                auto& instance = meshInstancePool_[gameObjectInstanceId];
+
+                const auto& t = instance.localToWorld;
                 VkTransformMatrixKHR transformMatrix = {
                     t[0][0], t[0][1], t[0][2], t[0][3],
                     t[1][0], t[1][1], t[1][2], t[1][3],
@@ -803,15 +782,13 @@ namespace PixelsForGlory::Vulkan
                 PFG_EDITORLOG(std::to_string(transformMatrix.matrix[1][0]) + ", " + std::to_string(transformMatrix.matrix[1][1]) + ", " + std::to_string(transformMatrix.matrix[1][2]) + ", " + std::to_string(transformMatrix.matrix[1][3]));
                 PFG_EDITORLOG(std::to_string(transformMatrix.matrix[2][0]) + ", " + std::to_string(transformMatrix.matrix[2][1]) + ", " + std::to_string(transformMatrix.matrix[2][2]) + ", " + std::to_string(transformMatrix.matrix[2][3]));*/
 
-                auto sharedMeshIndex = meshInstancePool_[instanceIndex]->sharedMeshIndex;
-
                 VkAccelerationStructureInstanceKHR& accelerationStructureInstance = instanceAccelerationStructures[instanceAccelerationStructuresIndex];
                 accelerationStructureInstance.transform = transformMatrix;
-                accelerationStructureInstance.instanceCustomIndex = instanceIndex;
+                accelerationStructureInstance.instanceCustomIndex = instanceAccelerationStructuresIndex;
                 accelerationStructureInstance.mask = 0xFF;
                 accelerationStructureInstance.instanceShaderBindingTableRecordOffset = 0;
                 accelerationStructureInstance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-                accelerationStructureInstance.accelerationStructureReference = sharedMeshesPool_[meshInstancePool_[instanceIndex]->sharedMeshIndex]->blas.deviceAddress;
+                accelerationStructureInstance.accelerationStructureReference = sharedMeshesPool_[instance.sharedMeshInstanceId]->blas.deviceAddress;
 
                 /*PFG_EDITORLOG("VkAccelerationStructureInstanceKHR.transform: ");
                 PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[0][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][3]));
@@ -826,6 +803,7 @@ namespace PixelsForGlory::Vulkan
             instancesAccelerationStructuresBuffer_.Destroy();
 
             instancesAccelerationStructuresBuffer_.Create(
+                "instanceBuffer",
                 device_,
                 physicalDeviceMemoryProperties_,
                 instanceAccelerationStructures.size() * sizeof(VkAccelerationStructureInstanceKHR),
@@ -855,9 +833,11 @@ namespace PixelsForGlory::Vulkan
             uint32_t instanceAccelerationStructuresIndex = 0;
             for (auto i = meshInstancePool_.in_use_begin(); i != meshInstancePool_.in_use_end(); ++i)
             {
-                auto instanceIndex = (*i);
+                auto gameObjectInstanceId = (*i).first;
 
-                const auto& t = meshInstancePool_[instanceIndex]->localToWorld;
+                auto& instance = meshInstancePool_[gameObjectInstanceId];
+
+                const auto& t = instance.localToWorld;
                 VkTransformMatrixKHR transformMatrix = {
                     t[0][0], t[0][1], t[0][2], t[0][3],
                     t[1][0], t[1][1], t[1][2], t[1][3],
@@ -923,10 +903,15 @@ namespace PixelsForGlory::Vulkan
 
         if (!update)
         {
+            if (tlas_.accelerationStructure != VK_NULL_HANDLE)
+            {
+                vkDestroyAccelerationStructureKHR(device_, tlas_.accelerationStructure, nullptr);
+            }
             tlas_.buffer.Destroy();
-
+            
             // Create a buffer to hold the acceleration structure
             tlas_.buffer.Create(
+                "tlas",
                 device_,
                 physicalDeviceMemoryProperties_,
                 accelerationStructureBuildSizesInfo.accelerationStructureSize,
@@ -940,6 +925,8 @@ namespace PixelsForGlory::Vulkan
             accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
             accelerationStructureCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
             VK_CHECK("vkCreateAccelerationStructureKHR", vkCreateAccelerationStructureKHR(device_, &accelerationStructureCreateInfo, nullptr, &tlas_.accelerationStructure));
+
+            assert(tlas_.accelerationStructure != VK_NULL_HANDLE);
         }
 
         // The actual build process starts here
@@ -947,6 +934,7 @@ namespace PixelsForGlory::Vulkan
         // Create a scratch buffer as a temporary storage for the acceleration structure build
         Vulkan::Buffer scratchBuffer;
         scratchBuffer.Create(
+            "scratch",
             device_,
             physicalDeviceMemoryProperties_,
             accelerationStructureBuildSizesInfo.buildScratchSize,
@@ -956,7 +944,7 @@ namespace PixelsForGlory::Vulkan
         VkAccelerationStructureBuildGeometryInfoKHR accelerationBuildGeometryInfo = {};
         accelerationBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
         accelerationBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-        accelerationBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+        accelerationBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
         accelerationBuildGeometryInfo.mode = update ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
         accelerationBuildGeometryInfo.srcAccelerationStructure = update ? tlas_.accelerationStructure : VK_NULL_HANDLE;
         accelerationBuildGeometryInfo.dstAccelerationStructure = tlas_.accelerationStructure;
@@ -1009,6 +997,31 @@ namespace PixelsForGlory::Vulkan
         CreateDescriptorSetsLayouts();
         CreateDescriptorPool();
 
+        // Create "light" for when there are no lights
+        noLight_.Create(
+            "noLight",
+            device_,
+            physicalDeviceMemoryProperties_,
+            sizeof(ShaderLightingData),
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+            Vulkan::Buffer::kDefaultMemoryPropertyFlags);
+        
+        auto light = reinterpret_cast<ShaderLightingData*>(noLight_.Map());
+
+        light->color = vec3(0.0f, 0.0f, 0.0f);
+        light->bounceIntensity = 0.0f;
+        light->intensity = 0.0f;
+        light->range = 0.0f;
+        light->spotAngle = 0.0f;
+        light->type = SHADER_LIGHTTYPE_NONE;
+        light->enabled = false;
+
+        noLight_.Unmap();
+
+        noLightBufferInfo_.buffer = noLight_.GetBuffer();
+        noLightBufferInfo_.offset = 0;
+        noLightBufferInfo_.range = noLight_.GetSize();
+
         alreadyPrepared_ = true;
     }
 
@@ -1034,14 +1047,15 @@ namespace PixelsForGlory::Vulkan
         if (renderTarget->cameraData.GetBuffer() == VK_NULL_HANDLE)
         {
             renderTarget->cameraData.Create(
+                "cameraData",
                 device_,
                 physicalDeviceMemoryProperties_,
-                sizeof(ShaderCameraParam),
+                sizeof(ShaderCameraData),
                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                 Vulkan::Buffer::kDefaultMemoryPropertyFlags);
         }
 
-        auto camera = reinterpret_cast<ShaderCameraParam*>(renderTarget->cameraData.Map());
+        auto camera = reinterpret_cast<ShaderCameraData*>(renderTarget->cameraData.Map());
         camera->camPos.x = camPos[0];
         camera->camPos.y = camPos[1];
         camera->camPos.z = camPos[2];
@@ -1072,20 +1086,101 @@ namespace PixelsForGlory::Vulkan
         if (sceneData_.GetBuffer() == VK_NULL_HANDLE)
         {
             sceneData_.Create(
+                "sceneData",
                 device_,
                 physicalDeviceMemoryProperties_,
-                sizeof(ShaderSceneParam),
+                sizeof(ShaderSceneData),
                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                 Vulkan::Buffer::kDefaultMemoryPropertyFlags);
         }
     
-        auto scene = reinterpret_cast<ShaderSceneParam*>(sceneData_.Map());
+        auto scene = reinterpret_cast<ShaderSceneData*>(sceneData_.Map());
         scene->ambient.r = color[0];
         scene->ambient.g = color[1];
         scene->ambient.b = color[2];
         scene->ambient.a = color[3];
 
         sceneData_.Unmap();
+    }
+
+    void RayTracer::AddLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled)
+    {
+        auto buffer = std::make_unique<Vulkan::Buffer>();
+
+        lightsPool_.add(lightInstanceId, std::move(buffer));
+
+        auto& light = lightsPool_[lightInstanceId];
+
+        light->Create(
+            "light",
+            device_,
+            physicalDeviceMemoryProperties_,
+            sizeof(ShaderLightingData),
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+            Vulkan::Buffer::kDefaultMemoryPropertyFlags);
+
+        UpdateLight(lightInstanceId, x, y, z, r, g, b, bounceIntensity, intensity, range, spotAngle, type, enabled);
+        PFG_EDITORLOG("Added light (lightInstanceId: " + std::to_string(lightInstanceId) + ")");
+    }
+
+    void RayTracer::UpdateLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled)
+    {
+        auto light = reinterpret_cast<ShaderLightingData*>(lightsPool_[lightInstanceId]->Map());
+
+        light->position = vec3(x, y, z);
+        light->color = vec3(r, g, b);
+        light->bounceIntensity = bounceIntensity;
+        light->intensity = intensity;
+        light->range = range;
+        light->spotAngle = spotAngle;
+
+        switch (type)
+        {
+        case SHADER_LIGHTTYPE_AREA:
+            light->type = SHADER_LIGHTTYPE_AREA;
+            break;
+
+        case SHADER_LIGHTTYPE_DIRECTIONAL:
+            light->type = SHADER_LIGHTTYPE_DIRECTIONAL;
+            break;
+
+        case SHADER_LIGHTTYPE_POINT:
+            light->type = SHADER_LIGHTTYPE_POINT;
+            break;
+        
+        case SHADER_LIGHTTYPE_SPOT:
+            light->type = SHADER_LIGHTTYPE_SPOT;
+            break;
+
+        default:
+            PFG_EDITORLOGERROR("Unrecognized light type: " + std::to_string(type) + ".");
+            light->type = SHADER_LIGHTTYPE_NONE;
+            break;
+        }
+
+        light->enabled = enabled;
+
+        lightsPool_[lightInstanceId]->Unmap();
+    }
+
+    void RayTracer::RemoveLight(int lightInstanceId)
+    {    
+        UnityVulkanRecordingState recordingState;
+        if (!graphicsInterface_->CommandRecordingState(&recordingState, kUnityVulkanGraphicsQueueAccess_DontCare))
+        {
+            PFG_EDITORLOGERROR("Cannot get recording state to remove light");
+            return;
+        }
+
+        auto index = garbageBuffers_.size();
+        garbageBuffers_.push_back(RayTracerGarbageBuffer());
+
+        garbageBuffers_[index].frameCount = recordingState.currentFrameNumber;
+        garbageBuffers_[index].buffer = std::move(lightsPool_[lightInstanceId]);
+
+        lightsPool_.remove(lightInstanceId);
+
+        PFG_EDITORLOG("Removed light (lightInstanceId: " + std::to_string(lightInstanceId) + ")");
     }
 
     void RayTracer::TraceRays(int cameraInstanceId)
@@ -1131,20 +1226,24 @@ namespace PixelsForGlory::Vulkan
         
         if (pipeline_ != VK_NULL_HANDLE && pipelineLayout_!= VK_NULL_HANDLE)
         {
+            UnityVulkanRecordingState recordingState;
+            if (!graphicsInterface_->CommandRecordingState(&recordingState, kUnityVulkanGraphicsQueueAccess_DontCare))
+            {
+                return;
+            }
+            
             BuildDescriptorBufferInfos(cameraInstanceId);
             UpdateDescriptorSets(cameraInstanceId);
 
             // cannot manage resources inside renderpass
             graphicsInterface_->EnsureOutsideRenderPass();
 
-            UnityVulkanRecordingState recordingState;
-            if (!graphicsInterface_->CommandRecordingState(&recordingState, kUnityVulkanGraphicsQueueAccess_DontCare))
-            {
-                return;
-            }
+
 
             BuildAndSubmitRayTracingCommandBuffer(cameraInstanceId, recordingState.commandBuffer);
             CopyRenderToRenderTarget(cameraInstanceId, recordingState.commandBuffer);
+
+            GarbageCollect(recordingState.safeFrameNumber);
         }
     }
 
@@ -1221,7 +1320,7 @@ namespace PixelsForGlory::Vulkan
         }
     }
 
-    void RayTracer::BuildBlas(int sharedMeshPoolIndex)
+    void RayTracer::BuildBlas(int sharedMeshInstanceId)
     {
         // Create buffers for the bottom level geometry
     
@@ -1233,6 +1332,7 @@ namespace PixelsForGlory::Vulkan
         
         Vulkan::Buffer transformBuffer;
         transformBuffer.Create(
+            "transformBuffer",
             device_, 
             physicalDeviceMemoryProperties_, 
             sizeof(VkTransformMatrixKHR),
@@ -1256,11 +1356,11 @@ namespace PixelsForGlory::Vulkan
         accelerationStructureGeometry.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
         accelerationStructureGeometry.geometry.triangles.pNext = nullptr;
         accelerationStructureGeometry.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
-        accelerationStructureGeometry.geometry.triangles.vertexData = sharedMeshesPool_[sharedMeshPoolIndex]->vertexBuffer.GetBufferDeviceAddressConst();
-        accelerationStructureGeometry.geometry.triangles.maxVertex = sharedMeshesPool_[sharedMeshPoolIndex]->vertexCount;
+        accelerationStructureGeometry.geometry.triangles.vertexData = sharedMeshesPool_[sharedMeshInstanceId]->vertexBuffer.GetBufferDeviceAddressConst();
+        accelerationStructureGeometry.geometry.triangles.maxVertex = sharedMeshesPool_[sharedMeshInstanceId]->vertexCount;
         accelerationStructureGeometry.geometry.triangles.vertexStride = sizeof(vec3);
         accelerationStructureGeometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
-        accelerationStructureGeometry.geometry.triangles.indexData = sharedMeshesPool_[sharedMeshPoolIndex]->indexBuffer.GetBufferDeviceAddressConst();
+        accelerationStructureGeometry.geometry.triangles.indexData = sharedMeshesPool_[sharedMeshInstanceId]->indexBuffer.GetBufferDeviceAddressConst();
         accelerationStructureGeometry.geometry.triangles.transformData = transformBuffer.GetBufferDeviceAddressConst();
         
         // Get the size requirements for buffers involved in the acceleration structure build process
@@ -1272,7 +1372,7 @@ namespace PixelsForGlory::Vulkan
         accelerationStructureBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
 
         // Number of triangles 
-        const uint32_t primitiveCount = sharedMeshesPool_[sharedMeshPoolIndex]->indexCount / 3;
+        const uint32_t primitiveCount = sharedMeshesPool_[sharedMeshInstanceId]->indexCount / 3;
         /*PFG_EDITORLOG("BuildBlas() vertexCount: " + std::to_string(sharedMeshesPool_[sharedMeshPoolIndex]->vertexCount));
         PFG_EDITORLOG("BuildBlas() indexCount: " + std::to_string(sharedMeshesPool_[sharedMeshPoolIndex]->indexCount));*/
 
@@ -1286,7 +1386,8 @@ namespace PixelsForGlory::Vulkan
             &accelerationStructureBuildSizesInfo);
 
         // Create a buffer to hold the acceleration structure
-        sharedMeshesPool_[sharedMeshPoolIndex]->blas.buffer.Create(
+        sharedMeshesPool_[sharedMeshInstanceId]->blas.buffer.Create(
+            "blas",
             device_,
             physicalDeviceMemoryProperties_,
             accelerationStructureBuildSizesInfo.accelerationStructureSize,
@@ -1296,15 +1397,16 @@ namespace PixelsForGlory::Vulkan
         // Create the acceleration structure
         VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo = {};
         accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
-        accelerationStructureCreateInfo.buffer = sharedMeshesPool_[sharedMeshPoolIndex]->blas.buffer.GetBuffer();
+        accelerationStructureCreateInfo.buffer = sharedMeshesPool_[sharedMeshInstanceId]->blas.buffer.GetBuffer();
         accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
         accelerationStructureCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-        VK_CHECK("vkCreateAccelerationStructureKHR", vkCreateAccelerationStructureKHR(device_, &accelerationStructureCreateInfo, nullptr, &sharedMeshesPool_[sharedMeshPoolIndex]->blas.accelerationStructure));
+        VK_CHECK("vkCreateAccelerationStructureKHR", vkCreateAccelerationStructureKHR(device_, &accelerationStructureCreateInfo, nullptr, &sharedMeshesPool_[sharedMeshInstanceId]->blas.accelerationStructure));
 
         // The actual build process starts here
         // Create a scratch buffer as a temporary storage for the acceleration structure build
         Vulkan::Buffer scratchBuffer;
         scratchBuffer.Create(
+            "scratch",
             device_, 
             physicalDeviceMemoryProperties_, 
             accelerationStructureBuildSizesInfo.buildScratchSize, 
@@ -1316,7 +1418,7 @@ namespace PixelsForGlory::Vulkan
         accelerationBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
         accelerationBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
         accelerationBuildGeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-        accelerationBuildGeometryInfo.dstAccelerationStructure = sharedMeshesPool_[sharedMeshPoolIndex]->blas.accelerationStructure;
+        accelerationBuildGeometryInfo.dstAccelerationStructure = sharedMeshesPool_[sharedMeshInstanceId]->blas.accelerationStructure;
         accelerationBuildGeometryInfo.geometryCount = 1;
         accelerationBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
         accelerationBuildGeometryInfo.scratchData = scratchBuffer.GetBufferDeviceAddress();
@@ -1346,10 +1448,10 @@ namespace PixelsForGlory::Vulkan
         // Get the bottom acceleration structure's handle, which will be used during the top level acceleration build
         VkAccelerationStructureDeviceAddressInfoKHR accelerationStructureDeviceAddressInfo{};
         accelerationStructureDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
-        accelerationStructureDeviceAddressInfo.accelerationStructure = sharedMeshesPool_[sharedMeshPoolIndex]->blas.accelerationStructure;
-        sharedMeshesPool_[sharedMeshPoolIndex]->blas.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device_, &accelerationStructureDeviceAddressInfo);
+        accelerationStructureDeviceAddressInfo.accelerationStructure = sharedMeshesPool_[sharedMeshInstanceId]->blas.accelerationStructure;
+        sharedMeshesPool_[sharedMeshInstanceId]->blas.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device_, &accelerationStructureDeviceAddressInfo);
 
-        PFG_EDITORLOG("Built blas for mesh (sharedMeshInstanceId: " + std::to_string(sharedMeshesPool_[sharedMeshPoolIndex]->sharedMeshInstanceId) + ")");
+        PFG_EDITORLOG("Built blas for mesh (sharedMeshInstanceId: " + std::to_string(sharedMeshInstanceId) + ")");
     }
 
     void RayTracer::CreateDescriptorSetsLayouts()
@@ -1358,11 +1460,10 @@ namespace PixelsForGlory::Vulkan
     
         descriptorSetLayouts_.resize(DESCRIPTOR_SET_SIZE);
 
-        // set 0:
-        //  binding 0  ->  Acceleration structure
-        //  binding 1  ->  Scene data
-        //  binding 2  ->  Camera data
         {
+            //  binding 0  ->  Acceleration structure
+            //  binding 1  ->  Scene data
+            //  binding 2  ->  Camera data
             VkDescriptorSetLayoutBinding accelerationStructureLayoutBinding;
             accelerationStructureLayoutBinding.binding = DESCRIPTOR_BINDING_ACCELERATION_STRUCTURE;
             accelerationStructureLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
@@ -1400,9 +1501,8 @@ namespace PixelsForGlory::Vulkan
                                             &descriptorSetLayouts_[DESCRIPTOR_SET_ACCELERATION_STRUCTURE & DESCRIPTOR_SET_SCENE_DATA & DESCRIPTOR_SET_CAMERA_DATA]));
         }
 
-        // Set 1
-        // binding 0 -> render target 
         {
+            // binding 0 -> render target 
             VkDescriptorSetLayoutBinding imageLayoutBinding;
             imageLayoutBinding.binding = DESCRIPTOR_BINDING_RENDER_TARGET;
             imageLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
@@ -1417,9 +1517,8 @@ namespace PixelsForGlory::Vulkan
             VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_RENDER_TARGET]));
         }
 
-        // set 2
-        // binding 0 -> attributes
         {
+            // binding 0 -> faces
             const VkDescriptorBindingFlags setFlag = VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
 
             VkDescriptorSetLayoutBindingFlagsCreateInfo setBindingFlags;
@@ -1428,24 +1527,48 @@ namespace PixelsForGlory::Vulkan
             setBindingFlags.pBindingFlags = &setFlag;
             setBindingFlags.bindingCount = 1;
 
-            VkDescriptorSetLayoutBinding verticesLayoutBinding;
-            verticesLayoutBinding.binding = DESCRIPTOR_BINDING_VERTEX_ATTRIBUTES;
-            verticesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-            verticesLayoutBinding.descriptorCount = static_cast<uint32_t>(sharedMeshAttributesPool_.pool_size());
-            verticesLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+            VkDescriptorSetLayoutBinding facesLayoutBinding;
+            facesLayoutBinding.binding = DESCRIPTOR_BINDING_FACE_DATA;
+            facesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            facesLayoutBinding.descriptorCount = 200000; // Upper bound on the size of the binding
+            facesLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
 
             VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
             descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
             descriptorSetLayoutCreateInfo.bindingCount = 1;
-            descriptorSetLayoutCreateInfo.pBindings = &verticesLayoutBinding;
+            descriptorSetLayoutCreateInfo.pBindings = &facesLayoutBinding;
+            descriptorSetLayoutCreateInfo.pNext = &setBindingFlags;
+
+            VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_FACE_DATA]));
+        }
+
+        {
+            // binding 0 -> attributes
+            const VkDescriptorBindingFlags setFlag = VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
+
+            VkDescriptorSetLayoutBindingFlagsCreateInfo setBindingFlags;
+            setBindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+            setBindingFlags.pNext = nullptr;
+            setBindingFlags.pBindingFlags = &setFlag;
+            setBindingFlags.bindingCount = 1;
+
+            VkDescriptorSetLayoutBinding attributesLayoutBinding;
+            attributesLayoutBinding.binding = DESCRIPTOR_BINDING_VERTEX_ATTRIBUTES;
+            attributesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            attributesLayoutBinding.descriptorCount = 200000;   // Upper bound on the size of the binding
+            attributesLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+
+            VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+            descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            descriptorSetLayoutCreateInfo.bindingCount = 1;
+            descriptorSetLayoutCreateInfo.pBindings = &attributesLayoutBinding;
             descriptorSetLayoutCreateInfo.pNext = &setBindingFlags;
 
             VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_VERTEX_ATTRIBUTES]));
         }
 
-        // set 3
-        // binding 0 -> faces
         {
+            // binding 0 -> lights
             const VkDescriptorBindingFlags setFlag = VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
 
             VkDescriptorSetLayoutBindingFlagsCreateInfo setBindingFlags;
@@ -1454,19 +1577,19 @@ namespace PixelsForGlory::Vulkan
             setBindingFlags.pBindingFlags = &setFlag;
             setBindingFlags.bindingCount = 1;
 
-            VkDescriptorSetLayoutBinding indicesLayoutBinding;
-            indicesLayoutBinding.binding = DESCRIPTOR_BINDING_FACE_DATA;
-            indicesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-            indicesLayoutBinding.descriptorCount = static_cast<uint32_t>(sharedMeshFacesPool_.pool_size());;
-            indicesLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+            VkDescriptorSetLayoutBinding lightsLayoutBinding;
+            lightsLayoutBinding.binding = DESCRIPTOR_BINDING_LIGHTS_DATA;
+            lightsLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            lightsLayoutBinding.descriptorCount = 50;   // Upper bound on the size of the binding
+            lightsLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
 
             VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
             descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
             descriptorSetLayoutCreateInfo.bindingCount = 1;
-            descriptorSetLayoutCreateInfo.pBindings = &indicesLayoutBinding;
+            descriptorSetLayoutCreateInfo.pBindings = &lightsLayoutBinding;
             descriptorSetLayoutCreateInfo.pNext = &setBindingFlags;
 
-            VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_FACE_DATA]));
+            VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_LIGHTS_DATA]));
         }
     }
 
@@ -1616,7 +1739,7 @@ namespace PixelsForGlory::Vulkan
             return;
         }
         
-        PFG_EDITORLOG("Copying render for " + std::to_string(cameraInstanceId));
+        // PFG_EDITORLOG("Copying render for " + std::to_string(cameraInstanceId));
 
         VkImageSubresourceRange range = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
@@ -1677,46 +1800,70 @@ namespace PixelsForGlory::Vulkan
     void RayTracer::BuildDescriptorBufferInfos(int cameraInstanceId)
     {
         // NOTE: assumes that renderTargets_ has already been checked 
-
         auto& renderTarget = renderTargets_[cameraInstanceId];
 
-        renderTarget->cameraDataBufferInfo.buffer = renderTarget->cameraData.GetBuffer();
-        renderTarget->cameraDataBufferInfo.offset = 0;
-        renderTarget->cameraDataBufferInfo.range = renderTarget->cameraData.GetSize();
+        {
+            const Vulkan::Buffer& buffer = renderTarget->cameraData;
+            renderTarget->cameraDataBufferInfo.buffer = buffer.GetBuffer();
+            renderTarget->cameraDataBufferInfo.offset = 0;
+            renderTarget->cameraDataBufferInfo.range = buffer.GetSize();
+        }
 
         //PFG_EDITORLOG("Updated BuildDescriptorBufferInfos for " + std::to_string(cameraInstanceId));
 
         // TODO: move all below here because its unnecessary to do this each build?
-        sceneBufferInfo_.buffer = sceneData_.GetBuffer();
-        sceneBufferInfo_.offset = 0;
-        sceneBufferInfo_.range = sceneData_.GetSize();
-       
-        sharedMeshAttributesBufferInfos_.clear();
-        sharedMeshAttributesBufferInfos_.resize(sharedMeshAttributesPool_.pool_size());
-        for (int i = 0; i < sharedMeshAttributesPool_.pool_size(); ++i)
         {
-            VkDescriptorBufferInfo& bufferInfo = sharedMeshAttributesBufferInfos_[i];
-            const Vulkan::Buffer& buffer = sharedMeshAttributesPool_[i];
-
-            bufferInfo.buffer = buffer.GetBuffer();
-            bufferInfo.offset = 0;
-            bufferInfo.range = buffer.GetSize();
-
-            sharedMeshAttributesBufferInfos_.push_back(bufferInfo);
+            const Vulkan::Buffer& buffer = renderTarget->cameraData;
+            sceneBufferInfo_.buffer = buffer.GetBuffer();
+            sceneBufferInfo_.offset = 0;
+            sceneBufferInfo_.range = buffer.GetSize();
         }
 
-        sharedMeshFacesBufferInfos_.clear();
-        sharedMeshFacesBufferInfos_.resize(sharedMeshFacesPool_.pool_size());
-        for (int i = 0; i < sharedMeshFacesPool_.pool_size(); ++i)
+        // NOTE: Instance index is the custom index used by the hit shader.
+        //       Make sure all infos can map back to an instance with the same index as used in BuildTlas!
+        meshInstancesAttributesBufferInfos_.resize(meshInstancePool_.in_use_size());
+        meshInstancesFacesBufferInfos_.resize(meshInstancePool_.in_use_size());
+        uint32_t i = 0;
+        for (auto itr = meshInstancePool_.in_use_begin(); itr != meshInstancePool_.in_use_end(); ++itr)
         {
-            VkDescriptorBufferInfo& bufferInfo = sharedMeshFacesBufferInfos_[i];
-            const Vulkan::Buffer& buffer = sharedMeshFacesPool_[i];
+            auto gameObjectInstanceId = (*itr).first;
 
-            bufferInfo.buffer = buffer.GetBuffer();
-            bufferInfo.offset = 0;
-            bufferInfo.range = buffer.GetSize();
+            auto sharedMeshInstanceId = meshInstancePool_[gameObjectInstanceId].sharedMeshInstanceId;
 
-            sharedMeshFacesBufferInfos_.push_back(bufferInfo);
+            // Setup attributes
+            {
+                const Vulkan::Buffer& buffer = sharedMeshesPool_[sharedMeshInstanceId]->attributesBuffer;
+                meshInstancesAttributesBufferInfos_[i].buffer = buffer.GetBuffer();
+                meshInstancesAttributesBufferInfos_[i].offset = 0;
+                meshInstancesAttributesBufferInfos_[i].range = buffer.GetSize();
+            }
+
+            // Setup faces
+            {
+                const Vulkan::Buffer& buffer = sharedMeshesPool_[sharedMeshInstanceId]->facesBuffer;
+                meshInstancesFacesBufferInfos_[i].buffer = buffer.GetBuffer();
+                meshInstancesFacesBufferInfos_[i].offset = 0;
+                meshInstancesFacesBufferInfos_[i].range = buffer.GetSize();
+            }
+
+            ++i;
+        }
+
+        lightsBufferInfos_.clear();
+        lightsBufferInfos_.resize(lightsPool_.in_use_size());
+        i = 0;
+        for (auto itr = lightsPool_.in_use_begin(); itr != lightsPool_.in_use_end(); ++itr)
+        {
+            auto lightInstanceId = (*itr).first;
+
+            {
+                const std::unique_ptr<Vulkan::Buffer>& buffer = lightsPool_[lightInstanceId];
+                lightsBufferInfos_[i].buffer = buffer->GetBuffer();
+                lightsBufferInfos_[i].offset = 0;
+                lightsBufferInfos_[i].range = buffer->GetSize();
+            }
+
+            ++i;
         }
     }
     
@@ -1724,17 +1871,17 @@ namespace PixelsForGlory::Vulkan
     {   
         // Descriptors are not generated directly, but from a pool.  Create that pool here
         std::vector<VkDescriptorPoolSize> poolSizes({
-            { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },       // Top level acceleration structure
-            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 2 },                    // Game Render Target + Scene Render Target
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2},                    // Scene data + Camera data
-            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 * 2 }             // vertex attribs for each mesh + faces buffer for each mesh  Supports 1000 meshes at once?
+            { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1       },     // Top level acceleration structure
+            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,              5       },     // Camera render targets
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,             1000    },     // Scene data + Camera data 
+            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,             1000    }      // Lights data + vertex attribs for each mesh + faces buffer for each mesh  Supports 100 meshes at once?
             });
     
         VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
         descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         descriptorPoolCreateInfo.pNext = nullptr;
         descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT; // This allows vkFreeDescriptorSets to be called
-        descriptorPoolCreateInfo.maxSets = 100;  // I have no idea what this should be T_T
+        descriptorPoolCreateInfo.maxSets = DESCRIPTOR_SET_SIZE * 5; // Support up to 5 cameras?
         descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         descriptorPoolCreateInfo.pPoolSizes = poolSizes.data();
     
@@ -1763,13 +1910,16 @@ namespace PixelsForGlory::Vulkan
     
         // Now use the pool to upload data for each descriptor
         renderTarget->descriptorSets.resize(DESCRIPTOR_SET_SIZE);
-        std::vector<uint32_t> variableDescriptorCounts({
-            1,                                                              // Set 0
-            1,                                                              // Set 1
-            static_cast<uint32_t>(sharedMeshAttributesPool_.pool_size()),   // Set 2
-            static_cast<uint32_t>(sharedMeshFacesPool_.pool_size())         // Set 3
-            });
-    
+        
+        std::vector<uint32_t> variableDescriptorCounts;
+        variableDescriptorCounts.resize(DESCRIPTOR_SET_SIZE);
+
+        variableDescriptorCounts[DESCRIPTOR_SET_ACCELERATION_STRUCTURE & DESCRIPTOR_SET_SCENE_DATA & DESCRIPTOR_SET_CAMERA_DATA] = 1;
+        variableDescriptorCounts[DESCRIPTOR_SET_RENDER_TARGET]                                                                   = 1;
+        variableDescriptorCounts[DESCRIPTOR_SET_FACE_DATA]                                                                       = static_cast<uint32_t>(meshInstancesFacesBufferInfos_.size());
+        variableDescriptorCounts[DESCRIPTOR_SET_VERTEX_ATTRIBUTES]                                                               = static_cast<uint32_t>(meshInstancesAttributesBufferInfos_.size());
+        variableDescriptorCounts[DESCRIPTOR_SET_LIGHTS_DATA]                                                                     = static_cast<uint32_t>(lightsBufferInfos_.size() == 0 ? 1 : static_cast<uint32_t>(lightsBufferInfos_.size()));
+   
         VkDescriptorSetVariableDescriptorCountAllocateInfo variableDescriptorCountInfo;
         variableDescriptorCountInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
         variableDescriptorCountInfo.pNext = nullptr;
@@ -1786,7 +1936,6 @@ namespace PixelsForGlory::Vulkan
         VK_CHECK("vkAllocateDescriptorSets", vkAllocateDescriptorSets(device_, &descriptorSetAllocateInfo, renderTarget->descriptorSets.data()));
     
         std::vector<VkWriteDescriptorSet> descriptorWrites;
-        // Set 0
         {
             // Acceleration Structure
             {
@@ -1846,12 +1995,10 @@ namespace PixelsForGlory::Vulkan
             }
         }
 
-        // Set 1
-        // Declared outside of scope so it isn't destroyed before write
         {
             // Render target
             {
-                // From renderTargets_ map, Game = 1
+                // From renderTargets_ map
                 VkDescriptorImageInfo descriptorRenderTargetGameImageInfo;
                 descriptorRenderTargetGameImageInfo.sampler = VK_NULL_HANDLE;
                 descriptorRenderTargetGameImageInfo.imageView = renderTargets_[cameraInstanceId]->stagingImage.GetImageView();
@@ -1872,8 +2019,26 @@ namespace PixelsForGlory::Vulkan
                 descriptorWrites.push_back(renderTargetGameImageWrite);
             }
         }
-       
-        // Set 2
+
+        {
+            // Faces
+            {
+                VkWriteDescriptorSet facesBufferWrite;
+                facesBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                facesBufferWrite.pNext = nullptr;
+                facesBufferWrite.dstSet = renderTarget->descriptorSets[DESCRIPTOR_SET_FACE_DATA];
+                facesBufferWrite.dstBinding = DESCRIPTOR_BINDING_FACE_DATA;
+                facesBufferWrite.dstArrayElement = 0;
+                facesBufferWrite.descriptorCount = static_cast<uint32_t>(meshInstancesFacesBufferInfos_.size());
+                facesBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                facesBufferWrite.pImageInfo = nullptr;
+                facesBufferWrite.pBufferInfo = meshInstancesFacesBufferInfos_.data();
+                facesBufferWrite.pTexelBufferView = nullptr;
+
+                descriptorWrites.push_back(facesBufferWrite);
+            }
+        }
+
         {
             // Vertex attributes
             {
@@ -1883,30 +2048,32 @@ namespace PixelsForGlory::Vulkan
                 attribsBufferWrite.dstSet = renderTarget->descriptorSets[DESCRIPTOR_SET_VERTEX_ATTRIBUTES];
                 attribsBufferWrite.dstBinding = DESCRIPTOR_BINDING_VERTEX_ATTRIBUTES;
                 attribsBufferWrite.dstArrayElement = 0;
-                attribsBufferWrite.descriptorCount = static_cast<uint32_t>(sharedMeshAttributesPool_.pool_size());
+                attribsBufferWrite.descriptorCount = static_cast<uint32_t>(meshInstancesAttributesBufferInfos_.size());
                 attribsBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                 attribsBufferWrite.pImageInfo = nullptr;
-                attribsBufferWrite.pBufferInfo = sharedMeshAttributesBufferInfos_.data();
+                attribsBufferWrite.pBufferInfo = meshInstancesAttributesBufferInfos_.data();
                 attribsBufferWrite.pTexelBufferView = nullptr;
 
                 descriptorWrites.push_back(attribsBufferWrite);
             }
+        }
 
-            // Faces
+        {
+            // Lights
             {
-                VkWriteDescriptorSet facesBufferWrite;
-                facesBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-                facesBufferWrite.pNext = nullptr;
-                facesBufferWrite.dstSet = renderTarget->descriptorSets[DESCRIPTOR_SET_FACE_DATA];
-                facesBufferWrite.dstBinding = DESCRIPTOR_BINDING_FACE_DATA;
-                facesBufferWrite.dstArrayElement = 0;
-                facesBufferWrite.descriptorCount = static_cast<uint32_t>(sharedMeshFacesPool_.pool_size());;
-                facesBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-                facesBufferWrite.pImageInfo = nullptr;
-                facesBufferWrite.pBufferInfo = sharedMeshFacesBufferInfos_.data();
-                facesBufferWrite.pTexelBufferView = nullptr;
+                VkWriteDescriptorSet lightsBufferWrite;
+                lightsBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                lightsBufferWrite.pNext = nullptr;
+                lightsBufferWrite.dstSet = renderTarget->descriptorSets[DESCRIPTOR_SET_LIGHTS_DATA];
+                lightsBufferWrite.dstBinding = DESCRIPTOR_BINDING_LIGHTS_DATA;
+                lightsBufferWrite.dstArrayElement = 0;
+                lightsBufferWrite.descriptorCount = lightsBufferInfos_.size() == 0 ? 1 : static_cast<uint32_t>(lightsBufferInfos_.size());
+                lightsBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                lightsBufferWrite.pImageInfo = nullptr;
+                lightsBufferWrite.pBufferInfo = lightsBufferInfos_.size() == 0 ? &noLightBufferInfo_ : lightsBufferInfos_.data();
+                lightsBufferWrite.pTexelBufferView = nullptr;
 
-                descriptorWrites.push_back(facesBufferWrite);
+                descriptorWrites.push_back(lightsBufferWrite);
             }
         }
     
@@ -1918,4 +2085,23 @@ namespace PixelsForGlory::Vulkan
         PFG_EDITORLOG("Successfully updated descriptor sets for " + std::to_string(cameraInstanceId));
     }
 
+
+    void RayTracer::GarbageCollect(uint64_t frameCount)
+    {
+        std::vector<uint32_t> removeIndices;
+        for (int32_t i = 0; i < static_cast<int32_t>(garbageBuffers_.size()); ++i)
+        {
+            if (garbageBuffers_[i].frameCount < frameCount)
+            {
+                garbageBuffers_[i].buffer->Destroy();
+                garbageBuffers_[i].buffer.release();
+                removeIndices.push_back(i);
+            }
+        }
+
+        for (int32_t i = static_cast<int32_t>(removeIndices.size()) - 1; i >= 0; --i)
+        {
+            garbageBuffers_.erase(garbageBuffers_.begin() + removeIndices[i]);
+        }
+    }
 }

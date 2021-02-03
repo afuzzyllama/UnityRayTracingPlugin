@@ -134,7 +134,7 @@ namespace PixelsForGlory::Vulkan
             VkDeviceSize imageSize = static_cast<VkDeviceSize>(static_cast<uint64_t>(width) * static_cast<uint64_t>(height) * static_cast<uint64_t>(bpp));
 
             Vulkan::Buffer stagingBuffer;
-            VkResult error = stagingBuffer.Create(device_, physicalDeviceMemoryProperties_, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, Vulkan::Buffer::kDefaultMemoryPropertyFlags);
+            VkResult error = stagingBuffer.Create(std::string(fileName), device_, physicalDeviceMemoryProperties_, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, Vulkan::Buffer::kDefaultMemoryPropertyFlags);
             if (VK_SUCCESS == error && stagingBuffer.UploadData(imageData, imageSize)) {
                 stbi_image_free(imageData);
 

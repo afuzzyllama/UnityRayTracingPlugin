@@ -1,10 +1,9 @@
 #ifndef SHADER_CONSTANTS_H
 #define SHADER_CONSTANTS_H
 
-#define DESCRIPTOR_SET_SIZE                       4
+#define DESCRIPTOR_SET_SIZE                       5
 
 // Descriptor set bindings
-// Set 0
 #define DESCRIPTOR_SET_ACCELERATION_STRUCTURE     0
 #define DESCRIPTOR_BINDING_ACCELERATION_STRUCTURE 0
 
@@ -14,17 +13,17 @@
 #define DESCRIPTOR_SET_CAMERA_DATA                0
 #define DESCRIPTOR_BINDING_CAMERA_DATA            2
 
-// Set 1
 #define DESCRIPTOR_SET_RENDER_TARGET              1
 #define DESCRIPTOR_BINDING_RENDER_TARGET          0
 
-// Set 2
-#define DESCRIPTOR_SET_VERTEX_ATTRIBUTES          2
+#define DESCRIPTOR_SET_FACE_DATA                  2
+#define DESCRIPTOR_BINDING_FACE_DATA              0
+
+#define DESCRIPTOR_SET_VERTEX_ATTRIBUTES          3
 #define DESCRIPTOR_BINDING_VERTEX_ATTRIBUTES      0
 
-// Set 3
-#define DESCRIPTOR_SET_FACE_DATA                  3
-#define DESCRIPTOR_BINDING_FACE_DATA              0
+#define DESCRIPTOR_SET_LIGHTS_DATA                4
+#define DESCRIPTOR_BINDING_LIGHTS_DATA            0
 
 #define PRIMARY_HIT_SHADERS_INDEX   0
 #define PRIMARY_MISS_SHADERS_INDEX  0
@@ -49,12 +48,14 @@
 #define align4
 #define align8
 #define align16
+#define align64 
 
 #endif
 
 struct ShaderRayPayload {
-    align16 vec4 albedo;
-    align4 float distance;
+    align16 vec4  albedo;
+    align4  float distance;
+    align16 vec3  normal;
 };
 
 struct ShaderShadowRayPayload {
@@ -62,14 +63,8 @@ struct ShaderShadowRayPayload {
     align4 float distance;
 };
 
-// Ability to resolve vertex in hit shader
-struct ShaderVertexAttribute {
-    align16 vec3        normal;
-    align8  vec2        uv;
-};
-
 // Ability to build tri face in hit shader
-struct ShaderFace {
+struct ShaderFaceData {
 #ifdef __cplusplus
     align4  uint32_t index0;
     align4  uint32_t index1;
@@ -81,31 +76,43 @@ struct ShaderFace {
 #endif
 };
 
+
+// Ability to resolve vertex in hit shader
+struct ShaderVertexAttributeData {
+    align16 vec3        normal;
+    align8  vec2        uv;
+};
+
+
 // packed std140
-struct ShaderSceneParam {
+struct ShaderSceneData {
     align16 vec4 ambient;
 };
 
-#define LIGHT_TYPE_NONE        0
-#define LIGHT_TYPE_DIRECTIONAL 1
-#define LIGHT_TYPE_POINT       2
-//#define LIGHT_TYPE_SPOTLIGHT 3 
+#define SHADER_LIGHTTYPE_NONE        -1
+#define SHADER_LIGHTTYPE_SPOT         0
+#define SHADER_LIGHTTYPE_DIRECTIONAL  1
+#define SHADER_LIGHTTYPE_POINT        2
+#define SHADER_LIGHTTYPE_AREA         3
 
 // packed std140
-struct ShaderLightingParam {
+struct ShaderLightingData {
 #ifdef __cplusplus
-    align4  uint32_t type;
+    align4  int32_t type;
 #else
-    align4  uint     type;
+    align4  int     type;
 #endif
-    align16 vec4     position;
-    align16 vec4     color;
+    align16 vec3     position;
+    align16 vec3     color;
+    align4  float    bounceIntensity;
     align4  float    intensity;
-    align4  float    radius;
+    align4  float    range;
+    align4  float    spotAngle;
+    align4  bool     enabled;
 };
 
 // packed std140
-struct ShaderCameraParam {
+struct ShaderCameraData {
     // Camera
     align16 vec4 camPos;
     align16 vec4 camDir;
@@ -115,7 +122,7 @@ struct ShaderCameraParam {
 };
 
 // packed std140
-struct ShaderMaterialParam {
+struct ShaderMaterialData {
     align16 vec4 emission;
     align16 vec4 albedo;
     align16 vec4 transmittance;

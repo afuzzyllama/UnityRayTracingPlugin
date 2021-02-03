@@ -106,6 +106,13 @@ public class RayTracingCameraRenderer
         _commandBuffer.EndSample(sampleName);
 
         _context.ExecuteCommandBuffer(_commandBuffer);
+#if UNITY_EDITOR
+        if (_camera.cameraType == CameraType.SceneView)
+        {
+            _context.DrawGizmos(_camera, GizmoSubset.PreImageEffects);
+            _context.DrawGizmos(_camera, GizmoSubset.PostImageEffects);
+        }
+#endif
         _context.Submit();
 
         _commandBuffer.Clear();

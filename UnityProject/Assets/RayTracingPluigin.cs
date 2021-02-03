@@ -17,22 +17,16 @@ namespace PixelsForGlory
         public static extern int SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, IntPtr destination);
 
         [DllImport("RayTracingPlugin")]
-        public static extern void SetTargetTexture(IntPtr texture, int width, int height);
-
-        [DllImport("RayTracingPlugin")]
-        public static extern int GetSharedMeshIndex(int sharedMeshInstanceId);
-
-        [DllImport("RayTracingPlugin")]
         public static extern int AddSharedMesh(int sharedMeshInstanceId, IntPtr vertices, IntPtr normals, IntPtr uvs, int vertexCount, IntPtr indices, int indexCount);
 
         [DllImport("RayTracingPlugin")]
-        public static extern int GetTlasInstanceIndex(int gameObjectInstanceId);
+        public static extern void AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, IntPtr l2wMatrix);
 
         [DllImport("RayTracingPlugin")]
-        public static extern int AddTlasInstance(int gameObjectInstanceId, int sharedMeshIndex, IntPtr l2wMatrix);
+        public static extern void UpdateTlasInstance(int gameObjectInstanceId, IntPtr l2wMatrix);
 
         [DllImport("RayTracingPlugin")]
-        public static extern void RemoveTlasInstance(int meshInstanceIndex);
+        public static extern void RemoveTlasInstance(int gameObjectInstanceId);
 
         [DllImport("RayTracingPlugin")]
         public static extern void BuildTlas();
@@ -48,6 +42,15 @@ namespace PixelsForGlory
 
         [DllImport("RayTracingPlugin")]
         public static extern void UpdateSceneData(IntPtr color);
+
+        [DllImport("RayTracingPlugin")]
+        public static extern void AddLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled);
+
+        [DllImport("RayTracingPlugin")]
+        public static extern void UpdateLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled);
+
+        [DllImport("RayTracingPlugin")]
+        public static extern void RemoveLight(int lightInstanceId);
 
         [DllImport("RayTracingPlugin")]
         public static extern IntPtr GetEventFunc();
