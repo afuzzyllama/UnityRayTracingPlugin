@@ -1,3 +1,5 @@
+![Current State](Screenshot.png?raw=true "Current State")
+
 # Unity Ray Tracing Plugin
 Proof of concept native plugin for Unity3d that replaces the renderer with a hardware accelerated ray tracer.
 
