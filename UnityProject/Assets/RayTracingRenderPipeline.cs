@@ -12,10 +12,6 @@ public class RayTracingRenderPipeline : RenderPipeline
         // Make sure tlas is built or updated before rendering
         PixelsForGlory.RayTracingPlugin.BuildTlas();
 
-        var colorHandle = GCHandle.Alloc(RenderSettings.ambientSkyColor, GCHandleType.Pinned);
-        PixelsForGlory.RayTracingPlugin.UpdateSceneData(colorHandle.AddrOfPinnedObject());
-        colorHandle.Free();
-
         foreach (var camera in cameras)
         {
             renderer.Render(context, camera);

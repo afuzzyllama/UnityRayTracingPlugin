@@ -37,6 +37,12 @@ public class RayTracingCameraRenderer
 
     private bool Setup()
     {
+        _context.SetupCameraProperties(_camera);
+        
+        var colorHandle = GCHandle.Alloc(_camera.backgroundColor, GCHandleType.Pinned);
+        PixelsForGlory.RayTracingPlugin.UpdateSceneData(colorHandle.AddrOfPinnedObject());
+        colorHandle.Free();
+
         var up = -_camera.transform.up;
 
         var camPosHandle = GCHandle.Alloc(_camera.transform.position, GCHandleType.Pinned);
@@ -99,6 +105,13 @@ public class RayTracingCameraRenderer
         var cameraInstanceId = _camera.GetInstanceID();
         var cameraInstanceIdHandle = GCHandle.Alloc(cameraInstanceId, GCHandleType.Pinned);
 
+#if UNITY_EDITOR
+        if (_camera.cameraType == CameraType.SceneView)
+        {
+            ScriptableRenderContext.EmitWorldGeometryForSceneView(_camera);
+        }
+#endif
+
         string sampleName = "Trace rays";
         _commandBuffer.BeginSample(sampleName);
         _commandBuffer.IssuePluginEventAndData(PixelsForGlory.RayTracingPlugin.GetEventAndDataFunc(), (int)Events.TraceRays, cameraInstanceIdHandle.AddrOfPinnedObject());
@@ -106,9 +119,11 @@ public class RayTracingCameraRenderer
         _commandBuffer.EndSample(sampleName);
 
         _context.ExecuteCommandBuffer(_commandBuffer);
+
 #if UNITY_EDITOR
         if (_camera.cameraType == CameraType.SceneView)
         {
+            
             _context.DrawGizmos(_camera, GizmoSubset.PreImageEffects);
             _context.DrawGizmos(_camera, GizmoSubset.PostImageEffects);
         }

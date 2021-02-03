@@ -43,7 +43,6 @@ namespace PixelsForGlory::Vulkan
             , format(VK_FORMAT_UNDEFINED)
             , extent(VkExtent3D())
             , cameraDataBufferInfo(VkDescriptorBufferInfo())
-            , updateDescriptorSetsData(true)
         {}
 
         void* destination;
@@ -56,7 +55,6 @@ namespace PixelsForGlory::Vulkan
         VkDescriptorBufferInfo cameraDataBufferInfo;
 
         std::vector<VkDescriptorSet> descriptorSets;
-        bool updateDescriptorSetsData;
     };
 
     struct RayTracerAccelerationStructure

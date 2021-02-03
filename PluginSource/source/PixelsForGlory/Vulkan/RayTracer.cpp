@@ -561,9 +561,6 @@ namespace PixelsForGlory::Vulkan
             return 0;
         }
 
-        // Make sure descriptor sets are updated if a new render target has been created
-        renderTarget->updateDescriptorSetsData = true;
-
         renderTargets_.insert(std::make_pair(cameraInstanceId, std::move(renderTarget)));
 
         return 1;
@@ -1257,6 +1254,13 @@ namespace PixelsForGlory::Vulkan
             BuildAndSubmitRayTracingCommandBuffer(cameraInstanceId, recordingState.commandBuffer);
             CopyRenderToRenderTarget(cameraInstanceId, recordingState.commandBuffer);
 
+            if (renderTargets_[cameraInstanceId]->descriptorSets.size() > 0)
+            {
+                // Free existing descriptor sets before attempting to allocate new ones!
+                vkFreeDescriptorSets(device_, descriptorPool_, DESCRIPTOR_SET_SIZE, renderTargets_[cameraInstanceId]->descriptorSets.data());
+                renderTargets_[cameraInstanceId]->descriptorSets.clear();
+            }
+
             GarbageCollect(recordingState.safeFrameNumber);
         }
     }
@@ -1827,7 +1831,7 @@ namespace PixelsForGlory::Vulkan
 
         // TODO: move all below here because its unnecessary to do this each build?
         {
-            const Vulkan::Buffer& buffer = renderTarget->cameraData;
+            const Vulkan::Buffer& buffer = sceneData_;
             sceneBufferInfo_.buffer = buffer.GetBuffer();
             sceneBufferInfo_.offset = 0;
             sceneBufferInfo_.range = buffer.GetSize();
@@ -1908,17 +1912,6 @@ namespace PixelsForGlory::Vulkan
     {
         // NOTE: assumes that renderTargets_ has already been checked 
         auto& renderTarget = renderTargets_[cameraInstanceId];
-
-        if (!renderTarget->updateDescriptorSetsData)
-        {
-            return;
-        }
-
-        if (renderTarget->descriptorSets.size() > 0)
-        {
-            // Free existing descriptor sets before attempting to allocate new ones!
-            vkFreeDescriptorSets(device_, descriptorPool_, DESCRIPTOR_SET_SIZE, renderTarget->descriptorSets.data());
-        }
 
         // Update the descriptor sets with the actual data to store in memory.
     
@@ -2092,9 +2085,6 @@ namespace PixelsForGlory::Vulkan
         }
     
         vkUpdateDescriptorSets(device_, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, VK_NULL_HANDLE);
-   
-        // Make sure unnecessary updates aren't made
-        renderTarget->updateDescriptorSetsData = false;
 
         PFG_EDITORLOG("Successfully updated descriptor sets for " + std::to_string(cameraInstanceId));
     }

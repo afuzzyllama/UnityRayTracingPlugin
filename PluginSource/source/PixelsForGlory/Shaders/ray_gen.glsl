@@ -384,7 +384,7 @@ vec3 TraceRay() {
         rays[currentRayIndex].color = PrimaryRay.albedo.rgb;
         if (hitDistance < 0.0f) {
             // Ray missed, nothing else to process
-            rays[currentRayIndex].color = PrimaryRay.albedo.rgb;
+            rays[currentRayIndex].color = SceneData.ambient.rgb;
             currentRayIndex++;
             continue;
         } 
