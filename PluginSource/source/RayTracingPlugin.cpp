@@ -18,7 +18,7 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 static IUnityInterfaces* s_UnityInterfaces = NULL;
 static IUnityGraphics* s_Graphics = NULL;
 
-extern "C" void    UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces* unityInterfaces)
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces* unityInterfaces)
 {
     s_UnityInterfaces = unityInterfaces;
     s_Graphics = s_UnityInterfaces->Get<IUnityGraphics>();
@@ -204,6 +204,86 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RemoveLight(int light
     PLUGIN_CHECK();
 
     s_CurrentAPI->RemoveLight(lightInstanceId);
+}
+
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddTexture(int textureInstanceId, void* texture)
+{
+    PLUGIN_CHECK_RETURN(-1);
+
+    return (int)s_CurrentAPI->AddTexture(textureInstanceId, texture);
+
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RemoveTexture(int textureInstanceId)
+{
+    PLUGIN_CHECK();
+
+    s_CurrentAPI->RemoveTexture(textureInstanceId);
+}
+
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddMaterial(int materialInstanceId,
+                                                                      float albedo_r, float albedo_g, float albedo_b,
+                                                                      float emission_r, float emission_g, float emission_b,
+                                                                      float metallic,
+                                                                      float roughness,
+                                                                      float indexOfRefraction,
+                                                                      int albedoTextureInstanceId,
+                                                                      int emissionTextureInstanceId,
+                                                                      int normalTextureInstanceId,
+                                                                      int metallicTextureInstanceId,
+                                                                      int roughnessTextureInstanceId,
+                                                                      int ambientOcclusionTextureInstanceId)
+{
+    PLUGIN_CHECK_RETURN(-1);
+
+    return (int)s_CurrentAPI->AddMaterial(materialInstanceId,
+                                          albedo_r, albedo_g, albedo_b,
+                                          emission_r, emission_g, emission_b,
+                                          metallic,
+                                          roughness,
+                                          indexOfRefraction,
+                                          albedoTextureInstanceId,
+                                          emissionTextureInstanceId,
+                                          normalTextureInstanceId,
+                                          metallicTextureInstanceId,
+                                          roughnessTextureInstanceId,
+                                          ambientOcclusionTextureInstanceId);
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateMaterial(int materialInstanceId,
+                                                                          float albedo_r, float albedo_g, float albedo_b,
+                                                                          float emission_r, float emission_g, float emission_b,
+                                                                          float metallic,
+                                                                          float roughness,
+                                                                          float indexOfRefraction,
+                                                                          int albedoTextureInstanceId,
+                                                                          int emissionTextureInstanceId,
+                                                                          int normalTextureInstanceId,
+                                                                          int metallicTextureInstanceId,
+                                                                          int roughnessTextureInstanceId,
+                                                                          int ambientOcclusionTextureInstanceId)
+{
+    PLUGIN_CHECK();
+
+    s_CurrentAPI->UpdateMaterial(materialInstanceId,
+                                 albedo_r, albedo_g, albedo_b,
+                                 emission_r, emission_g, emission_b,
+                                 metallic,
+                                 roughness,
+                                 indexOfRefraction,
+                                 albedoTextureInstanceId,
+                                 emissionTextureInstanceId,
+                                 normalTextureInstanceId,
+                                 metallicTextureInstanceId,
+                                 roughnessTextureInstanceId,
+                                 ambientOcclusionTextureInstanceId);
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RemoveMaterial(int materialInstanceId)
+{
+    PLUGIN_CHECK();
+
+    s_CurrentAPI->RemoveMaterial(materialInstanceId);
 }
 
 extern "C" UnityRenderingEvent UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetEventFunc()

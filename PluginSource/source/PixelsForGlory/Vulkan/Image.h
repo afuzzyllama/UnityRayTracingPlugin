@@ -2,9 +2,11 @@
 
 #include "../../vulkan.h"
 
+#include "IResource.h"
+
 namespace PixelsForGlory::Vulkan
 {
-    class Image {
+    class Image : public IResource {
     public:
         static void UpdateImageBarrier(
             VkCommandBuffer commandBuffer,
@@ -44,7 +46,8 @@ namespace PixelsForGlory::Vulkan
         /// <param name="usage"></param>
         /// <param name="memoryProperties"></param>
         /// <returns></returns>
-        VkResult Create(VkImageType imageType,
+        VkResult Create(std::string name,
+            VkImageType imageType,
             VkFormat format,
             VkExtent3D extent,
             VkImageTiling tiling,
@@ -54,7 +57,7 @@ namespace PixelsForGlory::Vulkan
         /// <summary>
         /// Destroy image
         /// </summary>
-        void Destroy();
+        virtual void Destroy();
 
         /// <summary>
         /// Load image from file with passed information
@@ -64,7 +67,7 @@ namespace PixelsForGlory::Vulkan
         /// <param name="commandBuffer"></param>
         /// <param name="transferQueue"></param>
         /// <returns></returns>
-        bool Load(const char* fileName, VkFormat format, VkCommandBuffer commandBuffer, VkQueue transferQueue);
+        void LoadFromUnity(std::string name, VkImage image, VkFormat format);
 
         /// <summary>
         /// Create image view
@@ -99,5 +102,8 @@ namespace PixelsForGlory::Vulkan
         VkDeviceMemory                      memory_;
         VkImageView                         imageView_;
         VkSampler                           sampler_;
+
+        std::string name_;
+        bool loadedFromUnity_;
     };
 }

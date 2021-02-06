@@ -1,10 +1,12 @@
 #pragma once
 #include "../../vulkan.h"
 
+#include "IResource.h"
+
 namespace PixelsForGlory::Vulkan
 {
 
-    class Buffer {
+    class Buffer : public IResource {
     public:
         static const VkMemoryPropertyFlags kDefaultMemoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
@@ -23,7 +25,7 @@ namespace PixelsForGlory::Vulkan
         /// <summary>
         /// Destroy buffer
         /// </summary>
-        void Destroy();
+        virtual void Destroy();
 
         /// <summary>
         /// Get a handle to GPU memory 

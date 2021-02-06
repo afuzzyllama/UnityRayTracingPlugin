@@ -25,6 +25,12 @@
 #define DESCRIPTOR_SET_LIGHTS_DATA                4
 #define DESCRIPTOR_BINDING_LIGHTS_DATA            0
 
+//#define DESCRIPTOR_SET_MATERIALS_DATA               5
+//#define DESCRIPTOR_BINDING_MATERIALS_DATA           0
+
+//#define DESCRIPTOR_SET_TEXTURES_DATA                6
+//#define DESCRIPTOR_BINDING_TEXTURES_DATA            0
+
 #define PRIMARY_HIT_SHADERS_INDEX   0
 #define PRIMARY_MISS_SHADERS_INDEX  0
 #define SHADOW_HIT_SHADERS_INDEX    1
@@ -123,26 +129,26 @@ struct ShaderCameraData {
 
 // packed std140
 struct ShaderMaterialData {
-    align16 vec4 emission;
-    align16 vec4 albedo;
-    align16 vec4 transmittance;
-    align4 float metallic;
-    align4 float roughness;
-    align4 float ior;
+    align16 vec4    albedo;
+    align16 vec4    emission;
+    align4  float   metallic;
+    align4  float   roughness;
+    align4  float   indexOfRefraction;
 #ifdef __cplusplus
-    align4 int32_t aoIndex;
-    align4 int32_t albedoIndex;
-    align4 int32_t normalIndex;
-    align4 int32_t roughIndex;
-    align4 int32_t reflIndex;
+    align4  int32_t albedoTexture;
+    align4  int32_t emissionTexture;
+    align4  int32_t normalTexture;
+    align4  int32_t metallicTexture;
+    align4  int32_t roughnessTexture;
+    align4  int32_t ambientOcclusionTexture;
 #else
-    align4 int aoIndex;
-    align4 int albedoIndex;
-    align4 int normalIndex;
-    align4 int roughIndex;
-    align4 int reflIndex;
+    align4  int     albedoTexture;
+    align4  int     emissionTexture;
+    align4  int     normalTexture;
+    align4  int     metallicTexture;
+    align4  int     roughnessTexture;
+    align4  int     ambientOcclusionTexture;
 #endif
-
 };
 
 // shaders helper functions

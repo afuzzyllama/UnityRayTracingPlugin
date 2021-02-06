@@ -9,9 +9,6 @@ public class RayTracingRenderPipeline : RenderPipeline
     
     protected override void Render(ScriptableRenderContext context, Camera[] cameras)
     {
-        // Make sure tlas is built or updated before rendering
-        PixelsForGlory.RayTracingPlugin.BuildTlas();
-
         foreach (var camera in cameras)
         {
             renderer.Render(context, camera);

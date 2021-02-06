@@ -114,6 +114,37 @@ namespace PixelsForGlory
 
         virtual void RemoveLight(int lightInstanceId) = 0;
 
+        virtual AddResourceResult AddTexture(int textureInstanceId, void* texture) = 0;
+        virtual void RemoveTexture(int textureInstanceId) = 0;
+
+        virtual AddResourceResult AddMaterial(int materialInstanceId,
+                                              float albedo_r, float albedo_g, float albedo_b,
+                                              float emission_r, float emission_g, float emission_b,
+                                              float metallic,
+                                              float roughness,
+                                              float indexOfRefraction,
+                                              int albedoTextureInstanceId,
+                                              int emissionTextureInstanceId,
+                                              int normalTextureInstanceId,
+                                              int metallicTextureInstanceId,
+                                              int roughnessTextureInstanceId,
+                                              int ambientOcclusionTextureInstanceId) = 0;
+
+        virtual void UpdateMaterial(int materialInstanceId,
+                                    float albedo_r, float albedo_g, float albedo_b,
+                                    float emission_r, float emission_g, float emission_b,
+                                    float metallic,
+                                    float roughness,
+                                    float indexOfRefraction,
+                                    int albedoTextureInstanceId,
+                                    int emissionTextureInstanceId,
+                                    int normalTextureInstanceId,
+                                    int metallicTextureInstanceId,
+                                    int roughnessTextureInstanceId,
+                                    int ambientOcclusionTextureInstanceId) = 0;
+
+        virtual void RemoveMaterial(int materialInstanceId) = 0;
+
         /// <summary>
         /// Ray those rays!
         /// </summary>

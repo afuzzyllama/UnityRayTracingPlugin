@@ -43,25 +43,6 @@ public class RayTracingCameraRenderer
         PixelsForGlory.RayTracingPlugin.UpdateSceneData(colorHandle.AddrOfPinnedObject());
         colorHandle.Free();
 
-        var up = -_camera.transform.up;
-
-        var camPosHandle = GCHandle.Alloc(_camera.transform.position, GCHandleType.Pinned);
-        var camDirHandle = GCHandle.Alloc(_camera.transform.forward, GCHandleType.Pinned);
-        var camUpHandle = GCHandle.Alloc(up, GCHandleType.Pinned);
-        var camSideHandle = GCHandle.Alloc(_camera.transform.right, GCHandleType.Pinned);
-        var camNearFarFovHandle = GCHandle.Alloc(new Vector3(_camera.nearClipPlane, _camera.farClipPlane, Mathf.Deg2Rad * _camera.fieldOfView), GCHandleType.Pinned);
-        PixelsForGlory.RayTracingPlugin.UpdateCamera(_camera.GetInstanceID(),
-                                                     camPosHandle.AddrOfPinnedObject(),
-                                                     camDirHandle.AddrOfPinnedObject(),
-                                                     camUpHandle.AddrOfPinnedObject(),
-                                                     camSideHandle.AddrOfPinnedObject(),
-                                                     camNearFarFovHandle.AddrOfPinnedObject()); ;
-        camPosHandle.Free();
-        camDirHandle.Free();
-        camUpHandle.Free();
-        camSideHandle.Free();
-        camNearFarFovHandle.Free();
-
         int width;
         int height;
         if(_camera.activeTexture == null)
@@ -75,24 +56,43 @@ public class RayTracingCameraRenderer
             height = _camera.activeTexture.height;
         }
 
-        int camInstanceId = _camera.GetInstanceID();
-        if (!_targets.ContainsKey(camInstanceId) || _targets[camInstanceId].width != width || _targets[camInstanceId].height != height)
+        int cameraInstanceId = _camera.GetInstanceID();
+        if (!_targets.ContainsKey(cameraInstanceId) || _targets[cameraInstanceId].width != width || _targets[cameraInstanceId].height != height)
         {
-            _targets[camInstanceId] = new Texture2D(width, height, TextureFormat.RGBA32, false)
+            _targets[cameraInstanceId] = new Texture2D(width, height, TextureFormat.RGBA32, false)
             {
                 // Set point filtering just so we can see the pixels clearly
                 filterMode = FilterMode.Point
             };
 
             // Call Apply() so it's actually uploaded to the GPU
-            _targets[camInstanceId].Apply();
+            _targets[cameraInstanceId].Apply();
 
-            if (PixelsForGlory.RayTracingPlugin.SetRenderTarget(camInstanceId, (int)_targets[camInstanceId].format, _targets[camInstanceId].width, _targets[camInstanceId].height, _targets[camInstanceId].GetNativeTexturePtr()) == 0)
+            if (PixelsForGlory.RayTracingPlugin.SetRenderTarget(cameraInstanceId, (int)_targets[cameraInstanceId].format, _targets[cameraInstanceId].width, _targets[cameraInstanceId].height, _targets[cameraInstanceId].GetNativeTexturePtr()) == 0)
             {
                 Debug.Log("Something went wrong with setting render target");
                 return false;
             }
         }
+
+        var up = -_camera.transform.up;
+
+        var camPosHandle = GCHandle.Alloc(_camera.transform.position, GCHandleType.Pinned);
+        var camDirHandle = GCHandle.Alloc(_camera.transform.forward, GCHandleType.Pinned);
+        var camUpHandle = GCHandle.Alloc(up, GCHandleType.Pinned);
+        var camSideHandle = GCHandle.Alloc(_camera.transform.right, GCHandleType.Pinned);
+        var camNearFarFovHandle = GCHandle.Alloc(new Vector3(_camera.nearClipPlane, _camera.farClipPlane, Mathf.Deg2Rad * _camera.fieldOfView), GCHandleType.Pinned);
+        PixelsForGlory.RayTracingPlugin.UpdateCamera(cameraInstanceId,
+                                                     camPosHandle.AddrOfPinnedObject(),
+                                                     camDirHandle.AddrOfPinnedObject(),
+                                                     camUpHandle.AddrOfPinnedObject(),
+                                                     camSideHandle.AddrOfPinnedObject(),
+                                                     camNearFarFovHandle.AddrOfPinnedObject()); ;
+        camPosHandle.Free();
+        camDirHandle.Free();
+        camUpHandle.Free();
+        camSideHandle.Free();
+        camNearFarFovHandle.Free();
 
         return true;
     }
@@ -123,7 +123,6 @@ public class RayTracingCameraRenderer
 #if UNITY_EDITOR
         if (_camera.cameraType == CameraType.SceneView)
         {
-            
             _context.DrawGizmos(_camera, GizmoSubset.PreImageEffects);
             _context.DrawGizmos(_camera, GizmoSubset.PostImageEffects);
         }

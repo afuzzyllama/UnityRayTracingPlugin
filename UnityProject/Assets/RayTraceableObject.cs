@@ -6,6 +6,8 @@ using UnityEngine;
 [RequireComponent(typeof(MeshFilter))]
 class RayTraceableObject : MonoBehaviour
 {
+    public RayTracerMaterial RayTracerMaterial;
+
     [ReadOnly] public int InstanceId;
     [ReadOnly] public int SharedMeshInstanceId;
 

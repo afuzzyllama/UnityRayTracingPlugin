@@ -54,7 +54,7 @@ namespace PixelsForGlory::Vulkan
         Vulkan::Buffer cameraData;
         VkDescriptorBufferInfo cameraDataBufferInfo;
 
-        std::vector<VkDescriptorSet> descriptorSets;
+        std::map<uint64_t, std::vector<VkDescriptorSet>> descriptorSets;
     };
 
     struct RayTracerAccelerationStructure
@@ -107,7 +107,11 @@ namespace PixelsForGlory::Vulkan
 
     struct RayTracerGarbageBuffer
     {
-        std::unique_ptr<Vulkan::Buffer> buffer;
+        RayTracerGarbageBuffer()
+            : frameCount(0) 
+        {}
+
+        std::unique_ptr<Vulkan::IResource> buffer;
         uint64_t frameCount;
     };
 
@@ -162,6 +166,36 @@ namespace PixelsForGlory::Vulkan
         virtual AddResourceResult AddLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled);
         virtual void UpdateLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled);
         virtual void RemoveLight(int lightInstanceId);
+        virtual AddResourceResult AddTexture(int textureInstanceId, void* texture);
+        virtual void RemoveTexture(int textureInstanceId);
+        virtual AddResourceResult AddMaterial(int materialInstanceId, 
+                                              float albedo_r, float albedo_g, float albedo_b, 
+                                              float emission_r, float emission_g, float emission_b, 
+                                              float metallic, 
+                                              float roughness, 
+                                              float indexOfRefraction, 
+                                              int albedoTextureInstanceId,
+                                              int emissionTextureInstanceId,
+                                              int normalTextureInstanceId,
+                                              int metallicTextureInstanceId,
+                                              int roughnessTextureInstanceId,
+                                              int ambientOcclusionTextureInstanceId);
+              
+        
+        virtual void UpdateMaterial(int materialInstanceId,
+                                    float albedo_r, float albedo_g, float albedo_b,
+                                    float emission_r, float emission_g, float emission_b,
+                                    float metallic,
+                                    float roughness,
+                                    float indexOfRefraction,
+                                    int albedoTextureInstanceId,
+                                    int emissionTextureInstanceId,
+                                    int normalTextureInstanceId,
+                                    int metallicTextureInstanceId,
+                                    int roughnessTextureInstanceId,
+                                    int ambientOcclusionTextureInstanceId);
+
+        virtual void RemoveMaterial(int materialInstanceId);
         virtual void TraceRays(int cameraInstanceId);
 #pragma endregion RayTracerAPI
 
@@ -232,6 +266,18 @@ namespace PixelsForGlory::Vulkan
        resourcePool<int, std::unique_ptr<Vulkan::Buffer>> lightsPool_;
        std::vector<VkDescriptorBufferInfo> lightsBufferInfos_;
 
+       Vulkan::Image blankTexture_;
+       VkDescriptorImageInfo blankTextureImageInfo_;
+       
+       resourcePool<int, std::unique_ptr<Vulkan::Image>> texturePool_;
+       std::vector<VkDescriptorImageInfo> textureImageInfos_;
+
+       Vulkan::Buffer defaultMaterial_;
+       VkDescriptorBufferInfo defaultMaterialBufferInfo_;
+
+       resourcePool<int, std::unique_ptr<Vulkan::Buffer>> materialPool_;
+       std::vector<VkDescriptorBufferInfo> materialBufferInfos_;
+
        std::vector<VkDescriptorSetLayout> descriptorSetLayouts_;
        VkDescriptorPool                   descriptorPool_;
 
@@ -290,7 +336,7 @@ namespace PixelsForGlory::Vulkan
         /// <summary>
         /// Builds and submits ray tracing commands
         /// </summary>
-        void BuildAndSubmitRayTracingCommandBuffer(int cameraInstanceId, VkCommandBuffer commandBuffer);
+        void BuildAndSubmitRayTracingCommandBuffer(int cameraInstanceId, VkCommandBuffer commandBuffer, uint64_t currentFrameNumber);
 
         void CopyRenderToRenderTarget(int cameraInstanceId, VkCommandBuffer commandBuffer);
 
@@ -307,7 +353,7 @@ namespace PixelsForGlory::Vulkan
         /// <summary>
         /// Update the descriptor sets for the shader
         /// </summary>
-        void UpdateDescriptorSets(int cameraInstanceId);
+        void UpdateDescriptorSets(int cameraInstanceId, uint64_t currentFrameNumber);
 
         void GarbageCollect(uint64_t frameCount);
     };

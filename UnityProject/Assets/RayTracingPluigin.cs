@@ -7,9 +7,6 @@ namespace PixelsForGlory
 {
     internal static class RayTracingPlugin
     {
-        [DllImport("RayTracingPlugin")]
-        public static extern void SetTimeFromUnity(float t);
-
         [DllImport("RayTracingPlugin", CharSet = CharSet.Unicode)]
         public static extern int SetShaderFolder(string shaderFolder);
 
