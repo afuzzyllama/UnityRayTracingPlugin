@@ -2300,13 +2300,15 @@ namespace PixelsForGlory::Vulkan
     
     void RayTracer::CreateDescriptorPool() 
     {   
+        // TODO: ADD SOME VALUES TO MONITOR POOL SIZES!
+
         // Descriptors are not generated directly, but from a pool.  Create that pool here
         std::vector<VkDescriptorPoolSize> poolSizes({
-            { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1       },     // Top level acceleration structure
-            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,              5       },     // Camera render targets
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,             1000    },     // Scene data + Camera data 
-            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,             1000    },     // Lights data + vertex attribs + materials
-            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,     1000    }      // Textures
+            { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 5       },     // Top level acceleration structure
+            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,              10       },    // Camera render targets
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,             3000    },     // Scene data + Camera data 
+            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,             3000    },     // Lights data + vertex attribs + materials
+            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,     3000    }      // Textures
             });
     
         VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
