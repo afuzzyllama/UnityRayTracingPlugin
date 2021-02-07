@@ -1,6 +1,4 @@
-﻿using System.Runtime.InteropServices;
-
-using UnityEngine;
+﻿using UnityEngine;
 
 [ExecuteInEditMode]
 [RequireComponent(typeof(Light))]
@@ -23,20 +21,23 @@ class RayTraceableLight : MonoBehaviour
         
     }
 
-    private Vector3     _lastPosition;
-    private Color       _lastColor;
-    private float       _lastBounceIntensity;
-    private float       _lastIintensity;
-    private float       _lastRange;
-    private float       _lastSpotAngle;
-    private LightType   _lastType;
-    private bool        _lastEnabled;
-
     private bool _registeredWithRayTracer = false;
 
-    private void OnEnable()
+    private ValueMonitor _monitor = new ValueMonitor();
+
+    private void Awake()
     {
         InstanceId = GetInstanceID();
+
+        _monitor.AddProperty(transform, transform.GetType(), "position", transform.position);
+        _monitor.AddProperty(_light, _light.GetType(), "color", _light.color);
+        _monitor.AddProperty(_light, _light.GetType(), "bounceIntensity", _light.bounceIntensity);
+        _monitor.AddProperty(_light, _light.GetType(), "intensity", _light.intensity);
+        _monitor.AddProperty(_light, _light.GetType(), "range", _light.range);
+        _monitor.AddProperty(_light, _light.GetType(), "spotAngle", _light.spotAngle);
+        _monitor.AddProperty(_light, _light.GetType(), "type", _light.type);
+        _monitor.AddProperty(_light, _light.GetType(), "enabled", _light.enabled);
+
         _registeredWithRayTracer = (PixelsForGlory.RayTracingPlugin.AddLight(InstanceId,
                                                  transform.position.x, transform.position.y, transform.position.z,
                                                  _light.color.r, _light.color.g, _light.color.b,
@@ -46,25 +47,20 @@ class RayTraceableLight : MonoBehaviour
                                                  _light.spotAngle,
                                                  (int)_light.type,
                                                  _light.enabled) > 0);
-
-        _lastPosition = transform.position;
-        _lastColor = _light.color;
-        _lastBounceIntensity = _light.bounceIntensity;
-        _lastIintensity = _light.intensity;
-        _lastRange = _light.range;
-        _lastSpotAngle = _light.spotAngle;
-        _lastType = _light.type;
-        _lastEnabled = _light.enabled;
     }
 
     private void Update()
     {
+        if(InstanceId != GetInstanceID())
+        {
+            InstanceId = GetInstanceID();
+        }
+
         UpdateLightData();
     }
 
     private void OnDisable()
     {
-        // Remove instance and possibly shared mesh
         UpdateLightData();
     }
 
@@ -73,26 +69,18 @@ class RayTraceableLight : MonoBehaviour
         if(_registeredWithRayTracer)
         {
             PixelsForGlory.RayTracingPlugin.RemoveLight(InstanceId);
-        }
-        
+        }       
     }
 
     private void UpdateLightData()
     {
-        if(_registeredWithRayTracer &&
-            (
-                _lastPosition        != transform.position       ||
-                _lastColor           != _light.color             ||
-                _lastBounceIntensity != _light.bounceIntensity   ||
-                _lastIintensity      !=_light.intensity          ||
-                _lastRange           != _light.range             ||
-                _lastSpotAngle       != _light.spotAngle         ||
-                _lastType            != _light.type              ||
-                _lastEnabled         != _light.enabled
-            )
-        )
+        if(!_monitor.CheckForUpdates())
         {
-            PixelsForGlory.RayTracingPlugin.UpdateLight(InstanceId,
+            // Nothing to do
+            return;
+        }
+        
+        PixelsForGlory.RayTracingPlugin.UpdateLight(InstanceId,
                                                     transform.position.x, transform.position.y, transform.position.z,
                                                     _light.color.r, _light.color.g, _light.color.b,
                                                     _light.bounceIntensity,
@@ -101,16 +89,6 @@ class RayTraceableLight : MonoBehaviour
                                                     _light.spotAngle,
                                                     (int)_light.type,
                                                     _light.enabled);
-
-            _lastPosition           = transform.position;
-            _lastColor              = _light.color;
-            _lastBounceIntensity    = _light.bounceIntensity;
-            _lastIintensity         = _light.intensity;
-            _lastRange              = _light.range;
-            _lastSpotAngle          = _light.spotAngle;
-            _lastType               = _light.type;
-            _lastEnabled            = _light.enabled;
-        }
     }
 }
 

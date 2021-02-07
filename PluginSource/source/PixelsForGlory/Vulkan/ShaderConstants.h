@@ -1,7 +1,7 @@
 #ifndef SHADER_CONSTANTS_H
 #define SHADER_CONSTANTS_H
 
-#define DESCRIPTOR_SET_SIZE                       5
+#define DESCRIPTOR_SET_SIZE                       8
 
 // Descriptor set bindings
 #define DESCRIPTOR_SET_ACCELERATION_STRUCTURE     0
@@ -25,11 +25,14 @@
 #define DESCRIPTOR_SET_LIGHTS_DATA                4
 #define DESCRIPTOR_BINDING_LIGHTS_DATA            0
 
-//#define DESCRIPTOR_SET_MATERIALS_DATA               5
-//#define DESCRIPTOR_BINDING_MATERIALS_DATA           0
+#define DESCRIPTOR_SET_MATERIALS_DATA             5
+#define DESCRIPTOR_BINDING_MATERIALS_DATA         0
 
-//#define DESCRIPTOR_SET_TEXTURES_DATA                6
-//#define DESCRIPTOR_BINDING_TEXTURES_DATA            0
+#define DESCRIPTOR_SET_TEXTURES_DATA              6
+#define DESCRIPTOR_BINDING_TEXTURES_DATA          0
+
+#define DESCRIPTOR_SET_INSTANCE_DATA              7
+#define DESCRIPTOR_BINDING_INSTANCE_DATA          0
 
 #define PRIMARY_HIT_SHADERS_INDEX   0
 #define PRIMARY_MISS_SHADERS_INDEX  0
@@ -87,6 +90,14 @@ struct ShaderFaceData {
 struct ShaderVertexAttributeData {
     align16 vec3        normal;
     align8  vec2        uv;
+};
+
+struct ShaderInstanceData {
+#ifdef __cplusplus
+    align4  uint32_t    materialIndex;    // This is the mapping done during descriptor update
+#else
+    align4  uint        materialIndex;    // This is the mapping done during descriptor update
+#endif
 };
 
 

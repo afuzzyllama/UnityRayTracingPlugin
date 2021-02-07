@@ -129,18 +129,18 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddSharedMesh(int shar
     return (int)s_CurrentAPI->AddSharedMesh(sharedMeshInstanceId, verticesArray, normalsArray, uvsArray, vertexCount, indicesArray, indexCount);
 }
 
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, float* l2wMatrix)
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, int materialInstanceId, float* l2wMatrix)
 {
     PLUGIN_CHECK_RETURN(-1);
 
-    return (int)s_CurrentAPI->AddTlasInstance(gameObjectInstanceId, sharedMeshInstanceId, l2wMatrix);
+    return (int)s_CurrentAPI->AddTlasInstance(gameObjectInstanceId, sharedMeshInstanceId, materialInstanceId, l2wMatrix);
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateTlasInstance(int gameObjectInstanceId, float* l2wMatrix)
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateTlasInstance(int gameObjectInstanceId, int materialInstanceId, float* l2wMatrix)
 {
     PLUGIN_CHECK();
 
-    return s_CurrentAPI->UpdateTlasInstance(gameObjectInstanceId, l2wMatrix);
+    return s_CurrentAPI->UpdateTlasInstance(gameObjectInstanceId, materialInstanceId, l2wMatrix);
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RemoveTlasInstance(int gameObjectInstanceId)

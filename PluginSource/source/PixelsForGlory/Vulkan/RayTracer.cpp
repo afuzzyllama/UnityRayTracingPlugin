@@ -372,6 +372,12 @@ namespace PixelsForGlory::Vulkan
         renderTargets_.clear();
         
 
+        for (auto meshItr = meshInstancePool_.pool_begin(); meshItr != meshInstancePool_.pool_end(); ++meshItr)
+        {
+            auto& instance = (*meshItr);
+            instance.instanceData.Destroy();
+        }
+
         for (auto itr = sharedMeshesPool_.pool_begin(); itr != sharedMeshesPool_.pool_end(); ++itr)
         {
             auto& mesh = (*itr);
@@ -418,7 +424,6 @@ namespace PixelsForGlory::Vulkan
             item->Destroy();
             item.release();
         }
-
 
         for (auto itr = garbageBuffers_.begin(); itr != garbageBuffers_.end(); ++itr)
         {
@@ -754,7 +759,7 @@ namespace PixelsForGlory::Vulkan
     
     }
 
-    RayTracerAPI::AddResourceResult RayTracer::AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, float* l2wMatrix)
+    RayTracerAPI::AddResourceResult RayTracer::AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, int materialInstanceId, float* l2wMatrix)
     { 
         if (meshInstancePool_.find(gameObjectInstanceId) != meshInstancePool_.in_use_end())
         {
@@ -766,8 +771,18 @@ namespace PixelsForGlory::Vulkan
 
         instance.gameObjectInstanceId = gameObjectInstanceId;
         instance.sharedMeshInstanceId = sharedMeshInstanceId;
+        instance.materialInstanceId   = materialInstanceId;
         FloatArrayToMatrix(l2wMatrix, instance.localToWorld);
-        
+
+
+        instance.instanceData.Create(
+            "instanceData",
+            device_,
+            physicalDeviceMemoryProperties_,
+            sizeof(ShaderInstanceData),
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+            Vulkan::Buffer::kDefaultMemoryPropertyFlags);
+                
         PFG_EDITORLOG("Added mesh instance (gameObjectInstanceId: " + std::to_string(gameObjectInstanceId) + ", sharedMeshInstanceId: " + std::to_string(sharedMeshInstanceId) + ")");
 
         // If we added an instance, we need to rebuild the tlas
@@ -776,9 +791,10 @@ namespace PixelsForGlory::Vulkan
         return RayTracerAPI::AddResourceResult::Success;
     }
 
-    void RayTracer::UpdateTlasInstance(int gameObjectInstanceId, float* l2wMatrix)
+    void RayTracer::UpdateTlasInstance(int gameObjectInstanceId, int materialInstanceId, float* l2wMatrix)
     {
         FloatArrayToMatrix(l2wMatrix, meshInstancePool_[gameObjectInstanceId].localToWorld);
+        meshInstancePool_[gameObjectInstanceId].materialInstanceId = materialInstanceId;
         updateTlas_ = true;
     }
 
@@ -810,6 +826,16 @@ namespace PixelsForGlory::Vulkan
             return;
         }
      
+        // TODO: this is copied from BuildDescriptorBufferInfos.... kinda not great way to do this?
+        uint32_t i = 1;
+        std::map<int, uint32_t> materialInstanceIdToShaderIndex;
+        for (auto itr = materialPool_.in_use_begin(); itr != materialPool_.in_use_end(); ++itr)
+        {
+            auto materialInstanceId = (*itr).first;
+            materialInstanceIdToShaderIndex.insert(std::make_pair(materialInstanceId, i));
+            ++i;
+        }
+
         if (!update)
         {
             // Build instance buffer from scratch
@@ -848,6 +874,18 @@ namespace PixelsForGlory::Vulkan
                 PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[0][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][3]));
                 PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[1][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[1][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[1][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[1][3]));
                 PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[2][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[2][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[2][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[2][3]));*/
+
+                // Map materials here, but seems like not the greatest place to do so?
+                auto instanceData = reinterpret_cast<ShaderInstanceData*>(instance.instanceData.Map());
+                if (instance.materialInstanceId == -1)
+                {
+                    instanceData->materialIndex = 0;
+                }
+                else
+                {
+                    instanceData->materialIndex = materialInstanceIdToShaderIndex[instance.materialInstanceId];
+                }
+                instance.instanceData.Unmap();
 
                 // Consumed current index, advance
                 ++instanceAccelerationStructuresIndex;
@@ -1038,10 +1076,10 @@ namespace PixelsForGlory::Vulkan
         {
             PFG_EDITORLOG("Succesfully updated tlas");
         }
-        else
-        {
-            PFG_EDITORLOG("Succesfully built tlas");
-        }
+        //else
+        //{
+        //    PFG_EDITORLOG("Succesfully built tlas");
+        //}
         
         
         // We did any pending work, reset flags
@@ -1084,66 +1122,67 @@ namespace PixelsForGlory::Vulkan
         noLightBufferInfo_.offset = 0;
         noLightBufferInfo_.range = noLight_.GetSize();
 
-        //// Create default material
-        //defaultMaterial_.Create(
-        //    "defaultMaterial",
-        //    device_,
-        //    physicalDeviceMemoryProperties_,
-        //    sizeof(ShaderMaterialData),
-        //    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-        //    Vulkan::Buffer::kDefaultMemoryPropertyFlags);
+        // Create default material
+        defaultMaterial_.Create(
+            "defaultMaterial",
+            device_,
+            physicalDeviceMemoryProperties_,
+            sizeof(ShaderMaterialData),
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+            Vulkan::Buffer::kDefaultMemoryPropertyFlags);
 
-        //auto material = reinterpret_cast<ShaderMaterialData*>(defaultMaterial_.Map());
+        auto material = reinterpret_cast<ShaderMaterialData*>(defaultMaterial_.Map());
 
-        //material->albedo = vec4(1.0f, 0.0f, 1.0f, 0.0);
-        //material->emission = vec4(0.0f);
-        //material->metallic = 0.0f;
-        //material->roughness = 0.0f;
-        //material->indexOfRefraction = 1.0f;
-        //material->albedoTexture = -1;
-        //material->emissionTexture = -1;
-        //material->normalTexture = -1;
-        //material->metallicTexture = -1;
-        //material->roughnessTexture = -1;
-        //material->ambientOcclusionTexture = -1;
+        material->albedo = vec4(1.0f, 0.0f, 1.0f, 0.0);
+        material->emission = vec4(0.0f);
+        material->metallic = 0.0f;
+        material->roughness = 0.0f;
+        material->indexOfRefraction = 1.0f;
+        material->albedoTexture = -1;
+        material->emissionTexture = -1;
+        material->normalTexture = -1;
+        material->metallicTexture = -1;
+        material->roughnessTexture = -1;
+        material->ambientOcclusionTexture = -1;
 
-        //defaultMaterial_.Unmap();
+        defaultMaterial_.Unmap();
 
-        //defaultMaterialBufferInfo_.buffer = defaultMaterial_.GetBuffer();
-        //defaultMaterialBufferInfo_.offset = 0;
-        //defaultMaterialBufferInfo_.range = defaultMaterial_.GetSize();
+        defaultMaterialBufferInfo_.buffer = defaultMaterial_.GetBuffer();
+        defaultMaterialBufferInfo_.offset = 0;
+        defaultMaterialBufferInfo_.range = defaultMaterial_.GetSize();
 
-        //blankTexture_ = Vulkan::Image(device_, physicalDeviceMemoryProperties_);
+        blankTexture_ = Vulkan::Image(device_, physicalDeviceMemoryProperties_);
 
-        //// Create blank texture
-        //blankTexture_.Create(
-        //    VK_IMAGE_TYPE_2D,
-        //    VK_FORMAT_R32G32B32A32_SFLOAT,
-        //    { 8, 8, 1 },
-        //    VK_IMAGE_TILING_OPTIMAL,
-        //    VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        //    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        // Create blank texture
+        blankTexture_.Create(
+            "blankTexture",
+            VK_IMAGE_TYPE_2D,
+            VK_FORMAT_R32G32B32A32_SFLOAT,
+            { 8, 8, 1 },
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 
-        //VkImageSubresourceRange subresourceRange = {};
-        //subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        //subresourceRange.baseMipLevel = 0;
-        //subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
-        //subresourceRange.baseArrayLayer = 0;
-        //subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+        VkImageSubresourceRange subresourceRange = {};
+        subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        subresourceRange.baseMipLevel = 0;
+        subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+        subresourceRange.baseArrayLayer = 0;
+        subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
 
-        //VK_CHECK("vkCreateImageView", blankTexture_.CreateImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, subresourceRange));
-        //VK_CHECK("vkCreateSampler", blankTexture_.CreateSampler(VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT));
+        VK_CHECK("vkCreateImageView", blankTexture_.CreateImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, subresourceRange));
+        VK_CHECK("vkCreateSampler", blankTexture_.CreateSampler(VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT));
 
-        //blankTextureImageInfo_.sampler = blankTexture_.GetSampler();
-        //blankTextureImageInfo_.imageView = blankTexture_.GetImageView();
-        //blankTextureImageInfo_.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        blankTextureImageInfo_.sampler = blankTexture_.GetSampler();
+        blankTextureImageInfo_.imageView = blankTexture_.GetImageView();
+        blankTextureImageInfo_.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        //meshInstancesAttributesBufferInfos_.resize(0);
-        //meshInstancesFacesBufferInfos_.resize(0);
-        //lightsBufferInfos_.resize(0);
-        //textureImageInfos_.resize(0);
-        //materialBufferInfos_.resize(0);
+        meshInstancesAttributesBufferInfos_.resize(0);
+        meshInstancesFacesBufferInfos_.resize(0);
+        lightsBufferInfos_.resize(0);
+        textureImageInfos_.resize(0);
+        materialBufferInfos_.resize(0);
 
         alreadyPrepared_ = true;
     }
@@ -1528,7 +1567,7 @@ namespace PixelsForGlory::Vulkan
         
         if (pipeline_ != VK_NULL_HANDLE && pipelineLayout_!= VK_NULL_HANDLE)
         {
-            BuildDescriptorBufferInfos(cameraInstanceId);
+            BuildDescriptorBufferInfos(cameraInstanceId, recordingState.currentFrameNumber);
             UpdateDescriptorSets(cameraInstanceId, recordingState.currentFrameNumber);
 
             BuildAndSubmitRayTracingCommandBuffer(cameraInstanceId, recordingState.commandBuffer, recordingState.currentFrameNumber);
@@ -1883,56 +1922,81 @@ namespace PixelsForGlory::Vulkan
             VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_LIGHTS_DATA]));
         }
 
-        //{
-        //    // binding 0 -> materials
-        //    const VkDescriptorBindingFlags setFlag = VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
+        {
+            // binding 0 -> materials
+            const VkDescriptorBindingFlags setFlag = VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
 
-        //    VkDescriptorSetLayoutBindingFlagsCreateInfo setBindingFlags;
-        //    setBindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
-        //    setBindingFlags.pNext = nullptr;
-        //    setBindingFlags.pBindingFlags = &setFlag;
-        //    setBindingFlags.bindingCount = 1;
+            VkDescriptorSetLayoutBindingFlagsCreateInfo setBindingFlags;
+            setBindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+            setBindingFlags.pNext = nullptr;
+            setBindingFlags.pBindingFlags = &setFlag;
+            setBindingFlags.bindingCount = 1;
 
-        //    VkDescriptorSetLayoutBinding materialsLayoutBinding;
-        //    materialsLayoutBinding.binding = DESCRIPTOR_BINDING_MATERIALS_DATA;
-        //    materialsLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        //    materialsLayoutBinding.descriptorCount = 100000;   // Upper bound on the size of the binding
-        //    materialsLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+            VkDescriptorSetLayoutBinding materialsLayoutBinding;
+            materialsLayoutBinding.binding = DESCRIPTOR_BINDING_MATERIALS_DATA;
+            materialsLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            materialsLayoutBinding.descriptorCount = 100000;   // Upper bound on the size of the binding
+            materialsLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
 
-        //    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
-        //    descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        //    descriptorSetLayoutCreateInfo.bindingCount = 1;
-        //    descriptorSetLayoutCreateInfo.pBindings = &materialsLayoutBinding;
-        //    descriptorSetLayoutCreateInfo.pNext = &setBindingFlags;
+            VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+            descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            descriptorSetLayoutCreateInfo.bindingCount = 1;
+            descriptorSetLayoutCreateInfo.pBindings = &materialsLayoutBinding;
+            descriptorSetLayoutCreateInfo.pNext = &setBindingFlags;
 
-        //    VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_MATERIALS_DATA]));
-        //}
+            VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_MATERIALS_DATA]));
+        }
 
-        //{
-        //    // binding 0 -> textures
-        //    const VkDescriptorBindingFlags setFlag = VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
+        {
+            // binding 0 -> textures
+            const VkDescriptorBindingFlags setFlag = VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
 
-        //    VkDescriptorSetLayoutBindingFlagsCreateInfo setBindingFlags;
-        //    setBindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
-        //    setBindingFlags.pNext = nullptr;
-        //    setBindingFlags.pBindingFlags = &setFlag;
-        //    setBindingFlags.bindingCount = 1;
+            VkDescriptorSetLayoutBindingFlagsCreateInfo setBindingFlags;
+            setBindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+            setBindingFlags.pNext = nullptr;
+            setBindingFlags.pBindingFlags = &setFlag;
+            setBindingFlags.bindingCount = 1;
 
-        //    VkDescriptorSetLayoutBinding texturesLayoutBinding;
-        //    texturesLayoutBinding.binding = DESCRIPTOR_BINDING_TEXTURES_DATA;
-        //    texturesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        //    texturesLayoutBinding.descriptorCount = 100;   // Upper bound on the size of the binding
-        //    texturesLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-        //    texturesLayoutBinding.pImmutableSamplers = nullptr; // If descriptorCount != 0 and pImmutableSamplers is not NULL, pImmutableSamplers must be a valid pointer.  We don't want this so null
+            VkDescriptorSetLayoutBinding texturesLayoutBinding;
+            texturesLayoutBinding.binding = DESCRIPTOR_BINDING_TEXTURES_DATA;
+            texturesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            texturesLayoutBinding.descriptorCount = 100;   // Upper bound on the size of the binding
+            texturesLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+            texturesLayoutBinding.pImmutableSamplers = nullptr; // If descriptorCount != 0 and pImmutableSamplers is not NULL, pImmutableSamplers must be a valid pointer.  We don't want this so null
 
-        //    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
-        //    descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        //    descriptorSetLayoutCreateInfo.bindingCount = 1;
-        //    descriptorSetLayoutCreateInfo.pBindings = &texturesLayoutBinding;
-        //    descriptorSetLayoutCreateInfo.pNext = &setBindingFlags;
+            VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+            descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            descriptorSetLayoutCreateInfo.bindingCount = 1;
+            descriptorSetLayoutCreateInfo.pBindings = &texturesLayoutBinding;
+            descriptorSetLayoutCreateInfo.pNext = &setBindingFlags;
 
-        //    VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_TEXTURES_DATA]));
-        //}
+            VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_TEXTURES_DATA]));
+        }
+
+        {
+            // binding 0 -> instance data
+            const VkDescriptorBindingFlags setFlag = VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
+
+            VkDescriptorSetLayoutBindingFlagsCreateInfo setBindingFlags;
+            setBindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+            setBindingFlags.pNext = nullptr;
+            setBindingFlags.pBindingFlags = &setFlag;
+            setBindingFlags.bindingCount = 1;
+
+            VkDescriptorSetLayoutBinding instanceDataLayoutBinding;
+            instanceDataLayoutBinding.binding = DESCRIPTOR_BINDING_INSTANCE_DATA;
+            instanceDataLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            instanceDataLayoutBinding.descriptorCount = 100000;   // Upper bound on the size of the binding
+            instanceDataLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+
+            VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+            descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            descriptorSetLayoutCreateInfo.bindingCount = 1;
+            descriptorSetLayoutCreateInfo.pBindings = &instanceDataLayoutBinding;
+            descriptorSetLayoutCreateInfo.pNext = &setBindingFlags;
+
+            VK_CHECK("vkCreateDescriptorSetLayout", vkCreateDescriptorSetLayout(device_, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayouts_[DESCRIPTOR_SET_INSTANCE_DATA]));
+        }
 
 
     }
@@ -2130,11 +2194,10 @@ namespace PixelsForGlory::Vulkan
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
 
-    void RayTracer::BuildDescriptorBufferInfos(int cameraInstanceId)
+    void RayTracer::BuildDescriptorBufferInfos(int cameraInstanceId, uint64_t currentFrameNumber)
     {
         // NOTE: assumes that renderTargets_ has already been checked 
         auto& renderTarget = renderTargets_[cameraInstanceId];
-
         {
             const Vulkan::Buffer& buffer = renderTarget->cameraData;
             renderTarget->cameraDataBufferInfo.buffer = buffer.GetBuffer();
@@ -2154,13 +2217,41 @@ namespace PixelsForGlory::Vulkan
 
         // NOTE: Instance index is the custom index used by the hit shader.
         //       Make sure all infos can map back to an instance with the same index as used in BuildTlas!
+        uint32_t i;
+
+        materialBufferInfos_.clear();
+        materialBufferInfos_.resize(materialPool_.in_use_size() + 1);
+
+        {
+            const Vulkan::Buffer& buffer = defaultMaterial_;
+            materialBufferInfos_[0].buffer = buffer.GetBuffer();
+            materialBufferInfos_[0].offset = 0;
+            materialBufferInfos_[0].range = buffer.GetSize();
+
+        }
+
+        std::map<int, uint32_t> materialInstanceIdToShaderIndex;
+        i = 1;
+        for (auto itr = materialPool_.in_use_begin(); itr != materialPool_.in_use_end(); ++itr)
+        {
+            auto materialInstanceId = (*itr).first;
+            {
+                const std::unique_ptr<Vulkan::Buffer>& buffer = materialPool_[materialInstanceId];
+                materialBufferInfos_[i].buffer = buffer->GetBuffer();
+                materialBufferInfos_[i].offset = 0;
+                materialBufferInfos_[i].range = buffer->GetSize();
+            }
+            materialInstanceIdToShaderIndex.insert(std::make_pair(materialInstanceId, i));
+            ++i;
+        }
+
         meshInstancesAttributesBufferInfos_.resize(meshInstancePool_.in_use_size());
         meshInstancesFacesBufferInfos_.resize(meshInstancePool_.in_use_size());
-        uint32_t i = 0;
+        meshInstancesDataBufferInfos_.resize(meshInstancePool_.in_use_size());
+        i = 0;
         for (auto itr = meshInstancePool_.in_use_begin(); itr != meshInstancePool_.in_use_end(); ++itr)
         {
             auto gameObjectInstanceId = (*itr).first;
-
             auto sharedMeshInstanceId = meshInstancePool_[gameObjectInstanceId].sharedMeshInstanceId;
 
             // Setup attributes
@@ -2179,6 +2270,13 @@ namespace PixelsForGlory::Vulkan
                 meshInstancesFacesBufferInfos_[i].range = buffer.GetSize();
             }
 
+            // Setup instance data
+            {
+                const Vulkan::Buffer& buffer = meshInstancePool_[gameObjectInstanceId].instanceData;
+                meshInstancesDataBufferInfos_[i].buffer = buffer.GetBuffer();
+                meshInstancesDataBufferInfos_[i].offset = 0;
+                meshInstancesDataBufferInfos_[i].range = buffer.GetSize();
+            }
             ++i;
         }
 
@@ -2207,8 +2305,8 @@ namespace PixelsForGlory::Vulkan
             { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1       },     // Top level acceleration structure
             { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,              5       },     // Camera render targets
             { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,             1000    },     // Scene data + Camera data 
-            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,             1000    }//,     // Lights data + vertex attribs + materials
-            //{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,     1000    }      // Textures
+            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,             1000    },     // Lights data + vertex attribs + materials
+            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,     1000    }      // Textures
             });
     
         VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
@@ -2245,9 +2343,10 @@ namespace PixelsForGlory::Vulkan
         variableDescriptorCounts[DESCRIPTOR_SET_FACE_DATA]                                                                       = static_cast<uint32_t>(meshInstancesFacesBufferInfos_.size());
         variableDescriptorCounts[DESCRIPTOR_SET_VERTEX_ATTRIBUTES]                                                               = static_cast<uint32_t>(meshInstancesAttributesBufferInfos_.size());
         variableDescriptorCounts[DESCRIPTOR_SET_LIGHTS_DATA]                                                                     = static_cast<uint32_t>(lightsBufferInfos_.size() == 0 ? 1 : static_cast<uint32_t>(lightsBufferInfos_.size()));
-        //variableDescriptorCounts[DESCRIPTOR_SET_MATERIALS_DATA]                                                                  = static_cast<uint32_t>(materialBufferInfos_.size() == 0 ? 1 : static_cast<uint32_t>(materialBufferInfos_.size()));
-        //variableDescriptorCounts[DESCRIPTOR_SET_TEXTURES_DATA]                                                                   = static_cast<uint32_t>(textureImageInfos_.size() == 0 ? 1 : static_cast<uint32_t>(textureImageInfos_.size()));
-   
+        variableDescriptorCounts[DESCRIPTOR_SET_MATERIALS_DATA]                                                                  = static_cast<uint32_t>(materialBufferInfos_.size() == 0 ? 1 : static_cast<uint32_t>(materialBufferInfos_.size()));
+        variableDescriptorCounts[DESCRIPTOR_SET_TEXTURES_DATA]                                                                   = static_cast<uint32_t>(textureImageInfos_.size() == 0 ? 1 : static_cast<uint32_t>(textureImageInfos_.size()));
+        variableDescriptorCounts[DESCRIPTOR_SET_INSTANCE_DATA]                                                                   = static_cast<uint32_t>(meshInstancesDataBufferInfos_.size());
+
         VkDescriptorSetVariableDescriptorCountAllocateInfo variableDescriptorCountInfo;
         variableDescriptorCountInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
         variableDescriptorCountInfo.pNext = nullptr;
@@ -2405,48 +2504,64 @@ namespace PixelsForGlory::Vulkan
             }
         }
 
-        //{
-        //    // Materials
-        //    {
-        //        VkWriteDescriptorSet materialsBufferWrite;
-        //        materialsBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        //        materialsBufferWrite.pNext = nullptr;
-        //        materialsBufferWrite.dstSet = renderTarget->descriptorSets[DESCRIPTOR_SET_MATERIALS_DATA];
-        //        materialsBufferWrite.dstBinding = DESCRIPTOR_BINDING_MATERIALS_DATA;
-        //        materialsBufferWrite.dstArrayElement = 0;
-        //        materialsBufferWrite.descriptorCount = static_cast<uint32_t>(materialBufferInfos_.size() == 0 ? 1 : static_cast<uint32_t>(materialBufferInfos_.size()));
-        //        materialsBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        //        materialsBufferWrite.pImageInfo = nullptr;
-        //        materialsBufferWrite.pBufferInfo = materialBufferInfos_.size() == 0 ? &defaultMaterialBufferInfo_ : materialBufferInfos_.data();
-        //        materialsBufferWrite.pTexelBufferView = nullptr;
+        {
+            // Materials
+            {
+                VkWriteDescriptorSet materialsBufferWrite;
+                materialsBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                materialsBufferWrite.pNext = nullptr;
+                materialsBufferWrite.dstSet = descriptorSets[DESCRIPTOR_SET_MATERIALS_DATA];
+                materialsBufferWrite.dstBinding = DESCRIPTOR_BINDING_MATERIALS_DATA;
+                materialsBufferWrite.dstArrayElement = 0;
+                materialsBufferWrite.descriptorCount = static_cast<uint32_t>(materialBufferInfos_.size() == 0 ? 1 : static_cast<uint32_t>(materialBufferInfos_.size()));
+                materialsBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                materialsBufferWrite.pImageInfo = nullptr;
+                materialsBufferWrite.pBufferInfo = materialBufferInfos_.size() == 0 ? &defaultMaterialBufferInfo_ : materialBufferInfos_.data();
+                materialsBufferWrite.pTexelBufferView = nullptr;
 
-        //        descriptorWrites.push_back(materialsBufferWrite);
-        //    }
-        //}
+                descriptorWrites.push_back(materialsBufferWrite);
+            }
+        }
 
-        //{
-        //    // Textures
-        //    {
-        //        VkWriteDescriptorSet texturesBufferWrite;
-        //        texturesBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        //        texturesBufferWrite.pNext = nullptr;
-        //        texturesBufferWrite.dstSet = renderTarget->descriptorSets[DESCRIPTOR_SET_TEXTURES_DATA];
-        //        texturesBufferWrite.dstBinding = DESCRIPTOR_BINDING_TEXTURES_DATA;
-        //        texturesBufferWrite.dstArrayElement = 0;
-        //        texturesBufferWrite.descriptorCount = static_cast<uint32_t>(textureImageInfos_.size() == 0 ? 1 : static_cast<uint32_t>(textureImageInfos_.size()));
-        //        texturesBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        //        texturesBufferWrite.pImageInfo = textureImageInfos_.size() == 0 ? &blankTextureImageInfo_ : textureImageInfos_.data();
-        //        texturesBufferWrite.pBufferInfo = nullptr;
-        //        texturesBufferWrite.pTexelBufferView = nullptr;
+        {
+            // Textures
+            {
+                VkWriteDescriptorSet texturesBufferWrite;
+                texturesBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                texturesBufferWrite.pNext = nullptr;
+                texturesBufferWrite.dstSet = descriptorSets[DESCRIPTOR_SET_TEXTURES_DATA];
+                texturesBufferWrite.dstBinding = DESCRIPTOR_BINDING_TEXTURES_DATA;
+                texturesBufferWrite.dstArrayElement = 0;
+                texturesBufferWrite.descriptorCount = static_cast<uint32_t>(textureImageInfos_.size() == 0 ? 1 : static_cast<uint32_t>(textureImageInfos_.size()));
+                texturesBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                texturesBufferWrite.pImageInfo = textureImageInfos_.size() == 0 ? &blankTextureImageInfo_ : textureImageInfos_.data();
+                texturesBufferWrite.pBufferInfo = nullptr;
+                texturesBufferWrite.pTexelBufferView = nullptr;
 
-        //        descriptorWrites.push_back(texturesBufferWrite);
-        //    }
-        //}
+                descriptorWrites.push_back(texturesBufferWrite);
+            }
+        }
 
+        {
+            // Instance Data
+            {
+                VkWriteDescriptorSet instanceDataBufferWrite;
+                instanceDataBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                instanceDataBufferWrite.pNext = nullptr;
+                instanceDataBufferWrite.dstSet = descriptorSets[DESCRIPTOR_SET_INSTANCE_DATA];
+                instanceDataBufferWrite.dstBinding = DESCRIPTOR_BINDING_INSTANCE_DATA;
+                instanceDataBufferWrite.dstArrayElement = 0;
+                instanceDataBufferWrite.descriptorCount = static_cast<uint32_t>(meshInstancesDataBufferInfos_.size());
+                instanceDataBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                instanceDataBufferWrite.pImageInfo = nullptr;
+                instanceDataBufferWrite.pBufferInfo = meshInstancesDataBufferInfos_.data();
+                instanceDataBufferWrite.pTexelBufferView = nullptr;
 
-    
+                descriptorWrites.push_back(instanceDataBufferWrite);
+            }
+        }
+
         vkUpdateDescriptorSets(device_, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, VK_NULL_HANDLE);
-
     }
 
 
@@ -2494,8 +2609,5 @@ namespace PixelsForGlory::Vulkan
                 renderTarget->descriptorSets.erase(removeFrameNumber);
             }
         }
-
     }
-
-    
 }

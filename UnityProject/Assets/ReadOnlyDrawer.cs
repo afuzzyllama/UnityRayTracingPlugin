@@ -7,9 +7,7 @@ public class ReadOnlyDrawer : PropertyDrawer
 {
     public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
     {
-        ReadOnlyAttribute att = (ReadOnlyAttribute)attribute;
         string val;
-
         switch (property.propertyType)
         {
             case SerializedPropertyType.Integer:
@@ -22,6 +20,10 @@ public class ReadOnlyDrawer : PropertyDrawer
 
             case SerializedPropertyType.String:
                 val = property.stringValue.ToString();
+                break;
+
+            case SerializedPropertyType.Boolean:
+                val = property.boolValue.ToString();
                 break;
 
             default:

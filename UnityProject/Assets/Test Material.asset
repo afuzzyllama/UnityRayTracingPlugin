@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9b8fecf8e6e8a924cafb992dd52e0f92, type: 3}
   m_Name: Test Material
   m_EditorClassIdentifier: 
-  albedoTexture: {fileID: 10309, guid: 0000000000000000f000000000000000, type: 0}
-  albedo: {r: 0, g: 0, b: 0, a: 0}
+  albedoTexture: {fileID: 0}
+  albedo: {r: 1, g: 0, b: 0.045656204, a: 0}
   emissionTexture: {fileID: 0}
   emission: {r: 0, g: 0, b: 0, a: 0}
   normalTexture: {fileID: 0}
@@ -23,4 +23,4 @@ MonoBehaviour:
   roughness: 0
   ambientOcclusionTexture: {fileID: 0}
   indexOfRefraction: 0
-  InstanceId: -1432
+  InstanceId: 14834

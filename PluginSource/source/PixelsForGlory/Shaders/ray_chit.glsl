@@ -7,7 +7,8 @@
 
 layout(set = DESCRIPTOR_SET_FACE_DATA,         binding = DESCRIPTOR_BINDING_FACE_DATA,         std430) readonly buffer FacesBuffer { ShaderFaceData Faces[]; } FacesArray[];
 layout(set = DESCRIPTOR_SET_VERTEX_ATTRIBUTES, binding = DESCRIPTOR_BINDING_VERTEX_ATTRIBUTES, std430) readonly buffer VertexAttributesBuffer { ShaderVertexAttributeData VertexAttributes[]; } VertexAttributesArray[];
-
+layout(set = DESCRIPTOR_SET_INSTANCE_DATA,     binding = DESCRIPTOR_BINDING_INSTANCE_DATA,     std430) readonly buffer InstanceDataBuffer { ShaderInstanceData InstanceData; } InstanceDataArray[];
+layout(set = DESCRIPTOR_SET_MATERIALS_DATA,    binding = DESCRIPTOR_BINDING_MATERIALS_DATA,    std430) readonly buffer MaterialDataBuffer { ShaderMaterialData MaterialData; } MaterialDataArray[];
 
 layout(location = LOCATION_PRIMARY_RAY) rayPayloadInEXT ShaderRayPayload PrimaryRay;
                                         hitAttributeEXT vec2 HitAttribs;
@@ -25,6 +26,9 @@ void main() {
     ShaderVertexAttributeData v0 = VertexAttributesArray[nonuniformEXT(gl_InstanceCustomIndexEXT)].VertexAttributes[face.index0];
     ShaderVertexAttributeData v1 = VertexAttributesArray[nonuniformEXT(gl_InstanceCustomIndexEXT)].VertexAttributes[face.index1];
     ShaderVertexAttributeData v2 = VertexAttributesArray[nonuniformEXT(gl_InstanceCustomIndexEXT)].VertexAttributes[face.index2];
+
+    ShaderInstanceData instance = InstanceDataArray[nonuniformEXT(gl_InstanceCustomIndexEXT)].InstanceData;
+    ShaderMaterialData material = MaterialDataArray[instance.materialIndex].MaterialData;
 
     // Using the barycentric coordinates, find the uv for this hit
     const vec2 uv = BaryLerp(v0.uv.xy, v1.uv.xy, v2.uv.xy, barycentrics);
@@ -89,7 +93,7 @@ void main() {
     // }
 
     // Return payload to gen shader
-    PrimaryRay.albedo = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    PrimaryRay.albedo = material.albedo;
     // PrimaryRay.albedo = vec4(texel, 0.0f);
     PrimaryRay.normal = normal;
     // PrimaryRay.roughness = vec4(roughness, 0.0f);

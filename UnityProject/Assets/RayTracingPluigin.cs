@@ -17,10 +17,10 @@ namespace PixelsForGlory
         public static extern int AddSharedMesh(int sharedMeshInstanceId, IntPtr vertices, IntPtr normals, IntPtr uvs, int vertexCount, IntPtr indices, int indexCount);
 
         [DllImport("RayTracingPlugin")]
-        public static extern int AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, IntPtr l2wMatrix);
+        public static extern int AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, int materialInstanceId, IntPtr l2wMatrix);
 
         [DllImport("RayTracingPlugin")]
-        public static extern void UpdateTlasInstance(int gameObjectInstanceId, IntPtr l2wMatrix);
+        public static extern void UpdateTlasInstance(int gameObjectInstanceId, int materialInstanceId, IntPtr l2wMatrix);
 
         [DllImport("RayTracingPlugin")]
         public static extern void RemoveTlasInstance(int gameObjectInstanceId);
@@ -48,6 +48,42 @@ namespace PixelsForGlory
 
         [DllImport("RayTracingPlugin")]
         public static extern void RemoveLight(int lightInstanceId);
+
+        [DllImport("RayTracingPlugin")]
+        public static extern int AddTexture(int textureInstanceId, IntPtr texture);
+
+        [DllImport("RayTracingPlugin")]
+        public static extern void RemoveTexture(int textureInstanceId);
+
+        [DllImport("RayTracingPlugin")]
+        public static extern int AddMaterial(int materialInstanceId,
+                                             float albedo_r, float albedo_g, float albedo_b,
+                                             float emission_r, float emission_g, float emission_b,
+                                             float metallic,
+                                             float roughness,
+                                             float indexOfRefraction,
+                                             int albedoTextureInstanceId,
+                                             int emissionTextureInstanceId,
+                                             int normalTextureInstanceId,
+                                             int metallicTextureInstanceId,
+                                             int roughnessTextureInstanceId,
+                                             int ambientOcclusionTextureInstanceId);
+        [DllImport("RayTracingPlugin")]
+        public static extern void UpdateMaterial(int materialInstanceId,
+                                                 float albedo_r, float albedo_g, float albedo_b,
+                                                 float emission_r, float emission_g, float emission_b,
+                                                 float metallic,
+                                                 float roughness,
+                                                 float indexOfRefraction,
+                                                 int albedoTextureInstanceId,
+                                                 int emissionTextureInstanceId,
+                                                 int normalTextureInstanceId,
+                                                 int metallicTextureInstanceId,
+                                                 int roughnessTextureInstanceId,
+                                                 int ambientOcclusionTextureInstanceId);
+
+        [DllImport("RayTracingPlugin")]
+        public static extern void RemoveMaterial(int materialInstanceId);
 
         [DllImport("RayTracingPlugin")]
         public static extern IntPtr GetEventFunc();
