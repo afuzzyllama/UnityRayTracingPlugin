@@ -36,6 +36,26 @@ namespace PixelsForGlory::Vulkan
     /// <param name="physicalDevice"></param>
     void ResolvePropertiesAndQueues_RayTracer(VkPhysicalDevice physicalDevice);
 
+    struct RayTracerDescriptorSetsData
+    {
+        RayTracerDescriptorSetsData()
+            : acceleration_stucture_count(0)
+            , uniform_buffer_count(0)
+            , storage_image_count(0)
+            , storage_buffer_count(0)
+            , combined_image_sampler_count(0)
+        {}
+
+        std::vector<VkDescriptorSet> descriptorSets;
+
+        uint32_t acceleration_stucture_count;
+        uint32_t uniform_buffer_count;
+        uint32_t storage_image_count;
+        uint32_t storage_buffer_count;
+        uint32_t combined_image_sampler_count;
+    };
+
+
     struct RayTracerRenderTarget
     {
         RayTracerRenderTarget()
@@ -54,7 +74,7 @@ namespace PixelsForGlory::Vulkan
         Vulkan::Buffer cameraData;
         VkDescriptorBufferInfo cameraDataBufferInfo;
 
-        std::map<uint64_t, std::vector<VkDescriptorSet>> descriptorSets;
+        std::map<uint64_t, RayTracerDescriptorSetsData> descriptorSetsData;
     };
 
     struct RayTracerAccelerationStructure
@@ -201,6 +221,7 @@ namespace PixelsForGlory::Vulkan
 
         virtual void RemoveMaterial(int materialInstanceId);
         virtual void TraceRays(int cameraInstanceId);
+        virtual RayTracerStatistics GetRayTracerStatistics();
 #pragma endregion RayTracerAPI
 
 

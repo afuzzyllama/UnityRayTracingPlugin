@@ -21,6 +21,36 @@ namespace PixelsForGlory
             AlreadyExists = 2
         };
 
+        struct RayTracerStatistics
+        {
+            RayTracerStatistics()
+                :RegisteredSharedMeshes(0)
+                , RegisteredMeshInstances(0)
+                , RegisteredMaterials(0)
+                , RegisteredTextures(0)
+                , RegisteredRenderTargets(0)
+                , DescriptorSetCount(0)
+                , AccelerationStuctureCount(0)
+                , UniformBufferCount(0)
+                , StorageImageCount(0)
+                , StorageBufferCount(0)
+                , CombinedImageSamplerCount(0)
+            {}
+
+            uint32_t RegisteredSharedMeshes;
+            uint32_t RegisteredMeshInstances;
+            uint32_t RegisteredMaterials;
+            uint32_t RegisteredTextures;
+            uint32_t RegisteredRenderTargets;
+
+            uint32_t DescriptorSetCount;
+            uint32_t AccelerationStuctureCount;
+            uint32_t UniformBufferCount;
+            uint32_t StorageImageCount;
+            uint32_t StorageBufferCount;
+            uint32_t CombinedImageSamplerCount;
+        };
+
         virtual ~RayTracerAPI() { }
 
         /// <summary>
@@ -149,6 +179,8 @@ namespace PixelsForGlory
         /// Ray those rays!
         /// </summary>
         virtual void TraceRays(int cameraInstanceId) = 0;
+
+        virtual RayTracerStatistics GetRayTracerStatistics() = 0;
     };
 
     // Create a graphics API implementation instance for the given API type.

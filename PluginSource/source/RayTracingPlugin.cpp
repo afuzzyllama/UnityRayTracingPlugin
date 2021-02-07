@@ -286,6 +286,13 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RemoveMaterial(int ma
     s_CurrentAPI->RemoveMaterial(materialInstanceId);
 }
 
+extern "C" PixelsForGlory::RayTracerAPI::RayTracerStatistics  UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetRayTracerStatistics()
+{
+    PLUGIN_CHECK_RETURN(PixelsForGlory::RayTracerAPI::RayTracerStatistics());
+
+    return s_CurrentAPI->GetRayTracerStatistics();
+}
+
 extern "C" UnityRenderingEvent UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetEventFunc()
 {
     return OnEvent;

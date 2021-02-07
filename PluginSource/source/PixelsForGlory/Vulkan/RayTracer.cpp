@@ -10,6 +10,8 @@ namespace PixelsForGlory
 
 namespace PixelsForGlory::Vulkan
 {
+
+#pragma region VulkanHooks
     /// <summary>
     /// Resolve properties and queues required for ray tracing
     /// </summary>
@@ -112,7 +114,7 @@ namespace PixelsForGlory::Vulkan
         const char* layerName = "VK_LAYER_KHRONOS_validation";
 
         // TODO: debug flag
-        if (/*_debug*/ true) {
+        if (/*_debug*/ false) {
             createInfo.enabledLayerCount = 1;
             createInfo.ppEnabledLayerNames = &layerName;
 
@@ -140,7 +142,7 @@ namespace PixelsForGlory::Vulkan
             VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
             VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME,
 
-            VK_EXT_DEBUG_UTILS_EXTENSION_NAME  // Enable when debugging of Vulkan is needed
+            /*VK_EXT_DEBUG_UTILS_EXTENSION_NAME*/  // Enable when debugging of Vulkan is needed
         };
 
         createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
@@ -295,6 +297,8 @@ namespace PixelsForGlory::Vulkan
 
     VkDevice RayTracer::NullDevice = VK_NULL_HANDLE;
     bool RayTracer::CreateDeviceSuccess = false;
+#pragma endregion VulkanHooks
+
 
     RayTracer::RayTracer()
         : graphicsInterface_(nullptr)
@@ -360,12 +364,12 @@ namespace PixelsForGlory::Vulkan
             renderTarget->stagingImage.Destroy();
             renderTarget->cameraData.Destroy();
 
-            for(auto itr = renderTarget->descriptorSets.begin(); itr != renderTarget->descriptorSets.end(); ++itr)
+            for(auto itr = renderTarget->descriptorSetsData.begin(); itr != renderTarget->descriptorSetsData.end(); ++itr)
             {
-                auto& descriptorSets = (*itr).second;
-                vkFreeDescriptorSets(device_, descriptorPool_, DESCRIPTOR_SET_SIZE, descriptorSets.data());
+                auto& descriptorSetsData = (*itr).second;
+                vkFreeDescriptorSets(device_, descriptorPool_, DESCRIPTOR_SET_SIZE, descriptorSetsData.descriptorSets.data());
             }
-            renderTarget->descriptorSets.clear();
+            renderTarget->descriptorSetsData.clear();
 
             renderTarget.release();
         }
@@ -466,6 +470,7 @@ namespace PixelsForGlory::Vulkan
 
 
     }
+
 
 #pragma region RayTracerAPI
     bool RayTracer::ProcessDeviceEvent(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces) 
@@ -1577,6 +1582,35 @@ namespace PixelsForGlory::Vulkan
         GarbageCollect(recordingState.safeFrameNumber);
     }
 
+    RayTracerAPI::RayTracerStatistics RayTracer::GetRayTracerStatistics()
+    {
+        RayTracerAPI::RayTracerStatistics currentStats;
+
+        currentStats.RegisteredSharedMeshes = static_cast<uint32_t>(sharedMeshesPool_.in_use_size());
+        currentStats.RegisteredMeshInstances = static_cast<uint32_t>(meshInstancePool_.in_use_size());
+        currentStats.RegisteredMaterials = static_cast<uint32_t>(materialPool_.in_use_size());
+        currentStats.RegisteredTextures = 0;
+        currentStats.RegisteredRenderTargets = static_cast<uint32_t>(renderTargets_.size());
+        
+        for (auto renderTargetItr = renderTargets_.begin(); renderTargetItr != renderTargets_.end(); ++renderTargetItr)
+        {
+            auto& renderTarget = (*renderTargetItr).second;
+            for (auto itr = renderTarget->descriptorSetsData.begin(); itr != renderTarget->descriptorSetsData.end(); ++itr)
+            {
+                auto& descriptorSetsData = (*itr).second;
+                
+                currentStats.DescriptorSetCount += 1;
+                currentStats.AccelerationStuctureCount += descriptorSetsData.acceleration_stucture_count;
+                currentStats.UniformBufferCount += descriptorSetsData.uniform_buffer_count;
+                currentStats.StorageImageCount += descriptorSetsData.storage_image_count;
+                currentStats.StorageBufferCount += descriptorSetsData.storage_buffer_count;
+                currentStats.CombinedImageSamplerCount += descriptorSetsData.combined_image_sampler_count;
+            }
+        }     
+
+        return currentStats;
+    }
+
 #pragma endregion RayTracerAPI
 
     void RayTracer::CreateCommandPool(uint32_t queueFamilyIndex, VkCommandPool& outCommandPool)
@@ -2061,7 +2095,7 @@ namespace PixelsForGlory::Vulkan
         // NOTE: assumes that renderTargets_ has already been checked
 
         auto& renderTarget = renderTargets_[cameraInstanceId];
-        auto& descriptorSet = renderTargets_[cameraInstanceId]->descriptorSets[currentFrameNumber];
+        auto& descriptorSetsData = renderTargets_[cameraInstanceId]->descriptorSetsData[currentFrameNumber];
 
         vkCmdBindPipeline(
             commandBuffer,
@@ -2072,7 +2106,7 @@ namespace PixelsForGlory::Vulkan
             commandBuffer,
             VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
             pipelineLayout_, 0,
-            static_cast<uint32_t>(descriptorSet.size()), descriptorSet.data(),
+            static_cast<uint32_t>(descriptorSetsData.descriptorSets.size()), descriptorSetsData.descriptorSets.data(),
             0, 0);
 
         VkStridedDeviceAddressRegionKHR raygenShaderEntry = {};
@@ -2094,7 +2128,7 @@ namespace PixelsForGlory::Vulkan
 
         // Dispatch the ray tracing commands
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline_);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout_, 0, static_cast<uint32_t>(descriptorSet.size()), descriptorSet.data(), 0, 0);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout_, 0, static_cast<uint32_t>(descriptorSetsData.descriptorSets.size()), descriptorSetsData.descriptorSets.data(), 0, 0);
 
         // Make into a storage image
         VkImageSubresourceRange range = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
@@ -2315,7 +2349,7 @@ namespace PixelsForGlory::Vulkan
         descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         descriptorPoolCreateInfo.pNext = nullptr;
         descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT; // This allows vkFreeDescriptorSets to be called
-        descriptorPoolCreateInfo.maxSets = DESCRIPTOR_SET_SIZE * 5; // Support up to 5 cameras?
+        descriptorPoolCreateInfo.maxSets = DESCRIPTOR_SET_SIZE * 10; // Support up to 5 cameras?
         descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         descriptorPoolCreateInfo.pPoolSizes = poolSizes.data();
     
@@ -2329,13 +2363,13 @@ namespace PixelsForGlory::Vulkan
         // NOTE: assumes that renderTargets_ has already been checked 
         auto& renderTarget = renderTargets_[cameraInstanceId];
 
-        renderTarget->descriptorSets.insert(std::make_pair(currentFrameNumber, std::vector<VkDescriptorSet>()));
-        auto& descriptorSets = renderTarget->descriptorSets[currentFrameNumber];
+        renderTarget->descriptorSetsData.insert(std::make_pair(currentFrameNumber, RayTracerDescriptorSetsData()));
+        auto& descriptorSetsData = renderTarget->descriptorSetsData[currentFrameNumber];
         
         // Update the descriptor sets with the actual data to store in memory.
     
         // Now use the pool to upload data for each descriptor
-        descriptorSets.resize(DESCRIPTOR_SET_SIZE);
+        descriptorSetsData.descriptorSets.resize(DESCRIPTOR_SET_SIZE);
         
         std::vector<uint32_t> variableDescriptorCounts;
         variableDescriptorCounts.resize(DESCRIPTOR_SET_SIZE);
@@ -2362,7 +2396,7 @@ namespace PixelsForGlory::Vulkan
         descriptorSetAllocateInfo.descriptorSetCount = DESCRIPTOR_SET_SIZE;
         descriptorSetAllocateInfo.pSetLayouts = descriptorSetLayouts_.data();
     
-        VK_CHECK("vkAllocateDescriptorSets", vkAllocateDescriptorSets(device_, &descriptorSetAllocateInfo, descriptorSets.data()));
+        VK_CHECK("vkAllocateDescriptorSets", vkAllocateDescriptorSets(device_, &descriptorSetAllocateInfo, descriptorSetsData.descriptorSets.data()));
     
         std::vector<VkWriteDescriptorSet> descriptorWrites;
         {
@@ -2377,7 +2411,7 @@ namespace PixelsForGlory::Vulkan
                 VkWriteDescriptorSet accelerationStructureWrite;
                 accelerationStructureWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 accelerationStructureWrite.pNext = &descriptorAccelerationStructureInfo; // Notice that pNext is assigned here!
-                accelerationStructureWrite.dstSet = descriptorSets[DESCRIPTOR_SET_ACCELERATION_STRUCTURE];
+                accelerationStructureWrite.dstSet = descriptorSetsData.descriptorSets[DESCRIPTOR_SET_ACCELERATION_STRUCTURE];
                 accelerationStructureWrite.dstBinding = DESCRIPTOR_BINDING_ACCELERATION_STRUCTURE;
                 accelerationStructureWrite.dstArrayElement = 0;
                 accelerationStructureWrite.descriptorCount = 1;
@@ -2385,6 +2419,8 @@ namespace PixelsForGlory::Vulkan
                 accelerationStructureWrite.pImageInfo = nullptr;
                 accelerationStructureWrite.pBufferInfo = nullptr;
                 accelerationStructureWrite.pTexelBufferView = nullptr;
+
+                descriptorSetsData.acceleration_stucture_count += accelerationStructureWrite.descriptorCount;
 
                 descriptorWrites.push_back(accelerationStructureWrite);
             }
@@ -2394,7 +2430,7 @@ namespace PixelsForGlory::Vulkan
                 VkWriteDescriptorSet sceneBufferWrite;
                 sceneBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 sceneBufferWrite.pNext = nullptr;
-                sceneBufferWrite.dstSet = descriptorSets[DESCRIPTOR_SET_SCENE_DATA];
+                sceneBufferWrite.dstSet = descriptorSetsData.descriptorSets[DESCRIPTOR_SET_SCENE_DATA];
                 sceneBufferWrite.dstBinding = DESCRIPTOR_BINDING_SCENE_DATA;
                 sceneBufferWrite.dstArrayElement = 0;
                 sceneBufferWrite.descriptorCount = 1;
@@ -2402,6 +2438,8 @@ namespace PixelsForGlory::Vulkan
                 sceneBufferWrite.pImageInfo = nullptr;
                 sceneBufferWrite.pBufferInfo = &sceneBufferInfo_;
                 sceneBufferWrite.pTexelBufferView = nullptr;
+
+                descriptorSetsData.uniform_buffer_count += sceneBufferWrite.descriptorCount;
 
                 descriptorWrites.push_back(sceneBufferWrite);
             }
@@ -2411,7 +2449,7 @@ namespace PixelsForGlory::Vulkan
                 VkWriteDescriptorSet camdataBufferWrite;
                 camdataBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 camdataBufferWrite.pNext = nullptr;
-                camdataBufferWrite.dstSet = descriptorSets[DESCRIPTOR_SET_CAMERA_DATA];
+                camdataBufferWrite.dstSet = descriptorSetsData.descriptorSets[DESCRIPTOR_SET_CAMERA_DATA];
                 camdataBufferWrite.dstBinding = DESCRIPTOR_BINDING_CAMERA_DATA;
                 camdataBufferWrite.dstArrayElement = 0;
                 camdataBufferWrite.descriptorCount = 1;
@@ -2419,6 +2457,8 @@ namespace PixelsForGlory::Vulkan
                 camdataBufferWrite.pImageInfo = nullptr;
                 camdataBufferWrite.pBufferInfo = &renderTargets_[cameraInstanceId]->cameraDataBufferInfo;
                 camdataBufferWrite.pTexelBufferView = nullptr;
+
+                descriptorSetsData.uniform_buffer_count += camdataBufferWrite.descriptorCount;
 
                 descriptorWrites.push_back(camdataBufferWrite);
             }
@@ -2436,7 +2476,7 @@ namespace PixelsForGlory::Vulkan
                 VkWriteDescriptorSet renderTargetGameImageWrite;
                 renderTargetGameImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 renderTargetGameImageWrite.pNext = nullptr;
-                renderTargetGameImageWrite.dstSet = descriptorSets[DESCRIPTOR_SET_RENDER_TARGET];
+                renderTargetGameImageWrite.dstSet = descriptorSetsData.descriptorSets[DESCRIPTOR_SET_RENDER_TARGET];
                 renderTargetGameImageWrite.dstBinding = DESCRIPTOR_BINDING_RENDER_TARGET;
                 renderTargetGameImageWrite.dstArrayElement = 0;
                 renderTargetGameImageWrite.descriptorCount = 1;
@@ -2444,6 +2484,8 @@ namespace PixelsForGlory::Vulkan
                 renderTargetGameImageWrite.pImageInfo = &descriptorRenderTargetGameImageInfo;
                 renderTargetGameImageWrite.pBufferInfo = nullptr;
                 renderTargetGameImageWrite.pTexelBufferView = nullptr;
+
+                descriptorSetsData.storage_image_count += renderTargetGameImageWrite.descriptorCount;
 
                 descriptorWrites.push_back(renderTargetGameImageWrite);
             }
@@ -2455,7 +2497,7 @@ namespace PixelsForGlory::Vulkan
                 VkWriteDescriptorSet facesBufferWrite;
                 facesBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 facesBufferWrite.pNext = nullptr;
-                facesBufferWrite.dstSet = descriptorSets[DESCRIPTOR_SET_FACE_DATA];
+                facesBufferWrite.dstSet = descriptorSetsData.descriptorSets[DESCRIPTOR_SET_FACE_DATA];
                 facesBufferWrite.dstBinding = DESCRIPTOR_BINDING_FACE_DATA;
                 facesBufferWrite.dstArrayElement = 0;
                 facesBufferWrite.descriptorCount = static_cast<uint32_t>(meshInstancesFacesBufferInfos_.size());
@@ -2463,6 +2505,8 @@ namespace PixelsForGlory::Vulkan
                 facesBufferWrite.pImageInfo = nullptr;
                 facesBufferWrite.pBufferInfo = meshInstancesFacesBufferInfos_.data();
                 facesBufferWrite.pTexelBufferView = nullptr;
+
+                descriptorSetsData.storage_buffer_count += facesBufferWrite.descriptorCount;
 
                 descriptorWrites.push_back(facesBufferWrite);
             }
@@ -2474,7 +2518,7 @@ namespace PixelsForGlory::Vulkan
                 VkWriteDescriptorSet attribsBufferWrite;
                 attribsBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 attribsBufferWrite.pNext = nullptr;
-                attribsBufferWrite.dstSet = descriptorSets[DESCRIPTOR_SET_VERTEX_ATTRIBUTES];
+                attribsBufferWrite.dstSet = descriptorSetsData.descriptorSets[DESCRIPTOR_SET_VERTEX_ATTRIBUTES];
                 attribsBufferWrite.dstBinding = DESCRIPTOR_BINDING_VERTEX_ATTRIBUTES;
                 attribsBufferWrite.dstArrayElement = 0;
                 attribsBufferWrite.descriptorCount = static_cast<uint32_t>(meshInstancesAttributesBufferInfos_.size());
@@ -2482,6 +2526,8 @@ namespace PixelsForGlory::Vulkan
                 attribsBufferWrite.pImageInfo = nullptr;
                 attribsBufferWrite.pBufferInfo = meshInstancesAttributesBufferInfos_.data();
                 attribsBufferWrite.pTexelBufferView = nullptr;
+
+                descriptorSetsData.storage_buffer_count += attribsBufferWrite.descriptorCount;
 
                 descriptorWrites.push_back(attribsBufferWrite);
             }
@@ -2493,7 +2539,7 @@ namespace PixelsForGlory::Vulkan
                 VkWriteDescriptorSet lightsBufferWrite;
                 lightsBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 lightsBufferWrite.pNext = nullptr;
-                lightsBufferWrite.dstSet = descriptorSets[DESCRIPTOR_SET_LIGHTS_DATA];
+                lightsBufferWrite.dstSet = descriptorSetsData.descriptorSets[DESCRIPTOR_SET_LIGHTS_DATA];
                 lightsBufferWrite.dstBinding = DESCRIPTOR_BINDING_LIGHTS_DATA;
                 lightsBufferWrite.dstArrayElement = 0;
                 lightsBufferWrite.descriptorCount = lightsBufferInfos_.size() == 0 ? 1 : static_cast<uint32_t>(lightsBufferInfos_.size());
@@ -2501,6 +2547,8 @@ namespace PixelsForGlory::Vulkan
                 lightsBufferWrite.pImageInfo = nullptr;
                 lightsBufferWrite.pBufferInfo = lightsBufferInfos_.size() == 0 ? &noLightBufferInfo_ : lightsBufferInfos_.data();
                 lightsBufferWrite.pTexelBufferView = nullptr;
+
+                descriptorSetsData.storage_buffer_count += lightsBufferWrite.descriptorCount;
 
                 descriptorWrites.push_back(lightsBufferWrite);
             }
@@ -2512,7 +2560,7 @@ namespace PixelsForGlory::Vulkan
                 VkWriteDescriptorSet materialsBufferWrite;
                 materialsBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 materialsBufferWrite.pNext = nullptr;
-                materialsBufferWrite.dstSet = descriptorSets[DESCRIPTOR_SET_MATERIALS_DATA];
+                materialsBufferWrite.dstSet = descriptorSetsData.descriptorSets[DESCRIPTOR_SET_MATERIALS_DATA];
                 materialsBufferWrite.dstBinding = DESCRIPTOR_BINDING_MATERIALS_DATA;
                 materialsBufferWrite.dstArrayElement = 0;
                 materialsBufferWrite.descriptorCount = static_cast<uint32_t>(materialBufferInfos_.size() == 0 ? 1 : static_cast<uint32_t>(materialBufferInfos_.size()));
@@ -2520,6 +2568,8 @@ namespace PixelsForGlory::Vulkan
                 materialsBufferWrite.pImageInfo = nullptr;
                 materialsBufferWrite.pBufferInfo = materialBufferInfos_.size() == 0 ? &defaultMaterialBufferInfo_ : materialBufferInfos_.data();
                 materialsBufferWrite.pTexelBufferView = nullptr;
+
+                descriptorSetsData.storage_buffer_count += materialsBufferWrite.descriptorCount;
 
                 descriptorWrites.push_back(materialsBufferWrite);
             }
@@ -2531,7 +2581,7 @@ namespace PixelsForGlory::Vulkan
                 VkWriteDescriptorSet texturesBufferWrite;
                 texturesBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 texturesBufferWrite.pNext = nullptr;
-                texturesBufferWrite.dstSet = descriptorSets[DESCRIPTOR_SET_TEXTURES_DATA];
+                texturesBufferWrite.dstSet = descriptorSetsData.descriptorSets[DESCRIPTOR_SET_TEXTURES_DATA];
                 texturesBufferWrite.dstBinding = DESCRIPTOR_BINDING_TEXTURES_DATA;
                 texturesBufferWrite.dstArrayElement = 0;
                 texturesBufferWrite.descriptorCount = static_cast<uint32_t>(textureImageInfos_.size() == 0 ? 1 : static_cast<uint32_t>(textureImageInfos_.size()));
@@ -2539,6 +2589,8 @@ namespace PixelsForGlory::Vulkan
                 texturesBufferWrite.pImageInfo = textureImageInfos_.size() == 0 ? &blankTextureImageInfo_ : textureImageInfos_.data();
                 texturesBufferWrite.pBufferInfo = nullptr;
                 texturesBufferWrite.pTexelBufferView = nullptr;
+
+                descriptorSetsData.combined_image_sampler_count += texturesBufferWrite.descriptorCount;
 
                 descriptorWrites.push_back(texturesBufferWrite);
             }
@@ -2550,7 +2602,7 @@ namespace PixelsForGlory::Vulkan
                 VkWriteDescriptorSet instanceDataBufferWrite;
                 instanceDataBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 instanceDataBufferWrite.pNext = nullptr;
-                instanceDataBufferWrite.dstSet = descriptorSets[DESCRIPTOR_SET_INSTANCE_DATA];
+                instanceDataBufferWrite.dstSet = descriptorSetsData.descriptorSets[DESCRIPTOR_SET_INSTANCE_DATA];
                 instanceDataBufferWrite.dstBinding = DESCRIPTOR_BINDING_INSTANCE_DATA;
                 instanceDataBufferWrite.dstArrayElement = 0;
                 instanceDataBufferWrite.descriptorCount = static_cast<uint32_t>(meshInstancesDataBufferInfos_.size());
@@ -2559,13 +2611,14 @@ namespace PixelsForGlory::Vulkan
                 instanceDataBufferWrite.pBufferInfo = meshInstancesDataBufferInfos_.data();
                 instanceDataBufferWrite.pTexelBufferView = nullptr;
 
+                descriptorSetsData.storage_buffer_count += instanceDataBufferWrite.descriptorCount;
+
                 descriptorWrites.push_back(instanceDataBufferWrite);
             }
         }
 
         vkUpdateDescriptorSets(device_, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, VK_NULL_HANDLE);
     }
-
 
     void RayTracer::GarbageCollect(uint64_t frameCount)
     {
@@ -2594,21 +2647,21 @@ namespace PixelsForGlory::Vulkan
             auto& renderTarget = (*renderItr).second;
 
             removeFrames.clear();
-            for (auto itr = renderTarget->descriptorSets.begin(); itr != renderTarget->descriptorSets.end(); ++itr)
+            for (auto itr = renderTarget->descriptorSetsData.begin(); itr != renderTarget->descriptorSetsData.end(); ++itr)
             {
                 auto frameNumber = (*itr).first;
-                auto& desriptorSets = (*itr).second;
+                auto& descriptorSetsData = (*itr).second;
 
                 if (frameNumber < frameCount)
                 {
-                    vkFreeDescriptorSets(device_, descriptorPool_, DESCRIPTOR_SET_SIZE, desriptorSets.data());
+                    vkFreeDescriptorSets(device_, descriptorPool_, DESCRIPTOR_SET_SIZE, descriptorSetsData.descriptorSets.data());
                     removeFrames.push_back(frameNumber);
                 }
             }
 
             for (auto removeFrameNumber : removeFrames)
             {
-                renderTarget->descriptorSets.erase(removeFrameNumber);
+                renderTarget->descriptorSetsData.erase(removeFrameNumber);
             }
         }
     }

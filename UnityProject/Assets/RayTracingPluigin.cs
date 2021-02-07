@@ -85,6 +85,26 @@ namespace PixelsForGlory
         [DllImport("RayTracingPlugin")]
         public static extern void RemoveMaterial(int materialInstanceId);
 
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RayTracerStatistics
+        {
+            public uint RegisteredSharedMeshes;
+            public uint RegisteredMeshInstances;
+            public uint RegisteredMaterials;
+            public uint RegisteredTextures;
+            public uint RegisteredRenderTargets;
+
+            public uint DescriptorSetCount;
+            public uint AccelerationStuctureCount;
+            public uint UniformBufferCount;
+            public uint StorageImageCount;
+            public uint StorageBufferCount;
+            public uint CombinedImageSamplerCount;
+        }
+
+        [DllImport("RayTracingPlugin")]
+        public static extern RayTracerStatistics GetRayTracerStatistics();
+
         [DllImport("RayTracingPlugin")]
         public static extern IntPtr GetEventFunc();
 
