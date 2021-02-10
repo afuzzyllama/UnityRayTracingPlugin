@@ -105,6 +105,7 @@ struct ShaderFaceData {
 // Ability to resolve vertex in hit shader
 struct ShaderVertexAttributeData {
     align16 vec3        normal;
+    align16 vec4        tangent;
     align8  vec2        uv;
 };
 
@@ -166,26 +167,44 @@ struct ShaderCameraData {
 
 // packed std140
 struct ShaderMaterialData {
-    align16 vec4    albedo;
-    align16 vec4    emission;
-    align4  float   metallic;
-    align4  float   roughness;
-    align4  float   indexOfRefraction;
-    align16 vec4    transmittance;
+    align16 vec4  albedo;
+    align16 vec4  emission;
+    align4  float metallic;
+    align4  float roughness;
+    align4  float indexOfRefraction;
+    align16 vec4  transmittance;
+    align4  bool  albedoTextureSet;
+    align4  bool  emissionTextureSet;
+    align4  bool  normalTextureSet;
+    align4  bool  metallicTextureSet;
+    align4  bool  roughnessTextureSet;
+    align4  bool  ambientOcclusionTextureSet;
 #ifdef __cplusplus
-    align4  int32_t albedoTexture;
-    align4  int32_t emissionTexture;
-    align4  int32_t normalTexture;
-    align4  int32_t metallicTexture;
-    align4  int32_t roughnessTexture;
-    align4  int32_t ambientOcclusionTexture;
+    align4  int32_t  albedoTextureInstanceId;
+    align4  int32_t  emissionTextureInstanceId;
+    align4  int32_t  normalTextureInstanceId;
+    align4  int32_t  metallicTextureInstanceId;
+    align4  int32_t  roughnessTextureInstanceId;
+    align4  int32_t  ambientOcclusionTextureInstanceId;
+    align4  uint32_t albedoTextureIndex;
+    align4  uint32_t emissionTextureIndex;
+    align4  uint32_t normalTextureIndex;
+    align4  uint32_t metallicTextureIndex;
+    align4  uint32_t roughnessTextureIndex;
+    align4  uint32_t ambientOcclusionTextureIndex;
 #else
-    align4  int     albedoTexture;
-    align4  int     emissionTexture;
-    align4  int     normalTexture;
-    align4  int     metallicTexture;
-    align4  int     roughnessTexture;
-    align4  int     ambientOcclusionTexture;
+    align4  int  albedoTextureInstanceId;
+    align4  int  emissionTextureInstanceId;
+    align4  int  normalTextureInstanceId;
+    align4  int  metallicTextureInstanceId;
+    align4  int  roughnessTextureInstanceId;
+    align4  int  ambientOcclusionTextureInstanceId;
+    align4  uint albedoTextureIndex;
+    align4  uint emissionTextureIndex;
+    align4  uint normalTextureIndex;
+    align4  uint metallicTextureIndex;
+    align4  uint roughnessTextureIndex;
+    align4  uint ambientOcclusionTextureIndex;
 #endif
 };
 

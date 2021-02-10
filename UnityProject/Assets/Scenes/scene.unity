@@ -245,7 +245,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ec6b2720ade7e884da906aa9d1b8ffa2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  InstanceId: 14766
+  InstanceId: 14772
 --- !u!4 &20
 Transform:
   m_ObjectHideFlags: 0
@@ -368,7 +368,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b781e4493fe298c49a80b614995463d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  InstanceId: 14776
+  InstanceId: 14782
   MaterialInstanceId: -1
   RayTracerMaterial: {fileID: 0}
 --- !u!33 &52529225
@@ -387,7 +387,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 52529222}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 2.09, y: 0.74, z: -2.77}
+  m_LocalPosition: {x: 2.08, y: -0.25, z: -2.01}
   m_LocalScale: {x: 2, y: 2, z: 2}
   m_Children: []
   m_Father: {fileID: 221267408}
@@ -505,11 +505,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 620917647ff2aa747b40bb164c6e8fac, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -3.191
+      value: -2.568
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 620917647ff2aa747b40bb164c6e8fac, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1.206
+      value: 0.398
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 620917647ff2aa747b40bb164c6e8fac, type: 3}
       propertyPath: m_LocalPosition.z
@@ -598,8 +598,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b781e4493fe298c49a80b614995463d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  InstanceId: 14794
-  MaterialInstanceId: 14846
+  InstanceId: 14800
+  MaterialInstanceId: 14852
   RayTracerMaterial: {fileID: 11400000, guid: 39f94febc84547141981e6e9570fa081, type: 2}
 --- !u!114 &255737831
 MonoBehaviour:
@@ -613,7 +613,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 51783df1fe99709489a88b617b7b6eac, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  SharedMeshInstanceId: 14854
+  SharedMeshInstanceId: 14868
   SharedMeshRegisteredWithRayTracer: 1
 --- !u!1 &316510192
 GameObject:
@@ -661,8 +661,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b781e4493fe298c49a80b614995463d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  InstanceId: 14802
-  MaterialInstanceId: 14846
+  InstanceId: 14808
+  MaterialInstanceId: 14852
   RayTracerMaterial: {fileID: 11400000, guid: 39f94febc84547141981e6e9570fa081, type: 2}
 --- !u!33 &316510195
 MeshFilter:
@@ -680,7 +680,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 316510192}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.86, y: 0, z: -1.981}
+  m_LocalPosition: {x: -4.342, y: 0, z: -1.981}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 221267408}
@@ -835,9 +835,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b781e4493fe298c49a80b614995463d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  InstanceId: 14816
-  MaterialInstanceId: 14848
-  RayTracerMaterial: {fileID: 11400000, guid: 3e45a55a0d83fca4198258c1725976d3, type: 2}
+  InstanceId: 14822
+  MaterialInstanceId: 14854
+  RayTracerMaterial: {fileID: 11400000, guid: 0524e06712a96f6459f8da49ea2c5a43, type: 2}
 --- !u!114 &1126319595
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -959,7 +959,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ec6b2720ade7e884da906aa9d1b8ffa2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  InstanceId: 14830
+  InstanceId: 14836
 --- !u!108 &1138454109
 Light:
   m_ObjectHideFlags: 0

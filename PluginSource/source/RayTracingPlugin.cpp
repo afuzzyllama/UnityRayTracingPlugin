@@ -122,11 +122,11 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetRenderTarget(int ca
     return s_CurrentAPI->SetRenderTarget(cameraInstanceId, unityTextureFormat, width, height, textureHandle);
 }
 
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddSharedMesh(int sharedMeshInstanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount)
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddSharedMesh(int sharedMeshInstanceId, float* verticesArray, float* normalsArray, float* tangentsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount)
 {
     PLUGIN_CHECK_RETURN(-1);
 
-    return (int)s_CurrentAPI->AddSharedMesh(sharedMeshInstanceId, verticesArray, normalsArray, uvsArray, vertexCount, indicesArray, indexCount);
+    return (int)s_CurrentAPI->AddSharedMesh(sharedMeshInstanceId, verticesArray, normalsArray, tangentsArray, uvsArray, vertexCount, indicesArray, indexCount);
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, int materialInstanceId, float* l2wMatrix)
@@ -228,11 +228,17 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddMaterial(int materi
                                                                       float metallic,
                                                                       float roughness,
                                                                       float indexOfRefraction,
+                                                                      bool albedoTextureSet,
                                                                       int albedoTextureInstanceId,
+                                                                      bool emissionTextureSet,
                                                                       int emissionTextureInstanceId,
+                                                                      bool normalTextureSet,
                                                                       int normalTextureInstanceId,
+                                                                      bool metallicTextureSet,
                                                                       int metallicTextureInstanceId,
+                                                                      bool roughnessTextureSet,
                                                                       int roughnessTextureInstanceId,
+                                                                      bool ambientOcclusionTextureSet,
                                                                       int ambientOcclusionTextureInstanceId)
 {
     PLUGIN_CHECK_RETURN(-1);
@@ -244,11 +250,17 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddMaterial(int materi
                                           metallic,
                                           roughness,
                                           indexOfRefraction,
+                                          albedoTextureSet,
                                           albedoTextureInstanceId,
+                                          emissionTextureSet,
                                           emissionTextureInstanceId,
+                                          normalTextureSet,
                                           normalTextureInstanceId,
+                                          metallicTextureSet,
                                           metallicTextureInstanceId,
+                                          roughnessTextureSet,
                                           roughnessTextureInstanceId,
+                                          ambientOcclusionTextureSet,
                                           ambientOcclusionTextureInstanceId);
 }
 
@@ -259,11 +271,17 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateMaterial(int ma
                                                                           float metallic,
                                                                           float roughness,
                                                                           float indexOfRefraction,
+                                                                          bool albedoTextureSet,
                                                                           int albedoTextureInstanceId,
+                                                                          bool emissionTextureSet,
                                                                           int emissionTextureInstanceId,
+                                                                          bool normalTextureSet,
                                                                           int normalTextureInstanceId,
+                                                                          bool metallicTextureSet,
                                                                           int metallicTextureInstanceId,
+                                                                          bool roughnessTextureSet,
                                                                           int roughnessTextureInstanceId,
+                                                                          bool ambientOcclusionTextureSet,
                                                                           int ambientOcclusionTextureInstanceId)
 {
     PLUGIN_CHECK();
@@ -275,11 +293,17 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateMaterial(int ma
                                  metallic,
                                  roughness,
                                  indexOfRefraction,
+                                 albedoTextureSet,
                                  albedoTextureInstanceId,
+                                 emissionTextureSet,
                                  emissionTextureInstanceId,
+                                 normalTextureSet,
                                  normalTextureInstanceId,
+                                 metallicTextureSet,
                                  metallicTextureInstanceId,
+                                 roughnessTextureSet,
                                  roughnessTextureInstanceId,
+                                 ambientOcclusionTextureSet,
                                  ambientOcclusionTextureInstanceId);
 }
 

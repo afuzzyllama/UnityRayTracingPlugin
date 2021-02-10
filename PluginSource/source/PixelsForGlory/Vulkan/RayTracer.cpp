@@ -322,9 +322,6 @@ namespace PixelsForGlory::Vulkan
         , debugMessenger_(VK_NULL_HANDLE)
         , noLight_(Vulkan::Buffer())
         , noLightBufferInfo_(VkDescriptorBufferInfo())
-        , blankTextureImageInfo_(VkDescriptorImageInfo())
-        , defaultMaterialBufferInfo_(VkDescriptorBufferInfo())
-        
     {}
 
     void RayTracer::InitializeFromUnityInstance(IUnityGraphicsVulkan* graphicsInterface)
@@ -626,7 +623,7 @@ namespace PixelsForGlory::Vulkan
         return 1;
     }
         
-    RayTracerAPI::AddResourceResult RayTracer::AddSharedMesh(int sharedMeshInstanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount)
+    RayTracerAPI::AddResourceResult RayTracer::AddSharedMesh(int sharedMeshInstanceId, float* verticesArray, float* normalsArray, float* tangentsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount)
     { 
         // Check that this shared mesh hasn't been added yet
         if (sharedMeshesPool_.find(sharedMeshInstanceId) != sharedMeshesPool_.in_use_end())
@@ -727,6 +724,11 @@ namespace PixelsForGlory::Vulkan
             vertexAttributes[i].normal.y = normalsArray[3 * i + 1];
             vertexAttributes[i].normal.z = normalsArray[3 * i + 2];
     
+            vertexAttributes[i].tangent.x = tangentsArray[4 * i + 0];
+            vertexAttributes[i].tangent.y = tangentsArray[4 * i + 1];
+            vertexAttributes[i].tangent.z = tangentsArray[4 * i + 2];
+            vertexAttributes[i].tangent.w = tangentsArray[4 * i + 3];
+
             vertexAttributes[i].uv.x = uvsArray[2 * i + 0];
             vertexAttributes[i].uv.y = uvsArray[2 * i + 1];
         }
@@ -1180,22 +1182,34 @@ namespace PixelsForGlory::Vulkan
         material->metallic = 0.0f;
         material->roughness = 0.0f;
         material->indexOfRefraction = 1.0f;
-        material->albedoTexture = -1;
-        material->emissionTexture = -1;
-        material->normalTexture = -1;
-        material->metallicTexture = -1;
-        material->roughnessTexture = -1;
-        material->ambientOcclusionTexture = -1;
+        material->albedoTextureSet = false;
+        material->albedoTextureInstanceId = -1;
+        material->albedoTextureIndex = 0;
+        material->emissionTextureSet = false;
+        material->emissionTextureInstanceId = -1;
+        material->emissionTextureIndex = 0;
+        material->normalTextureSet = false;
+        material->normalTextureInstanceId = -1;
+        material->normalTextureIndex = 0;
+        material->metallicTextureSet = false;
+        material->metallicTextureInstanceId = -1;
+        material->metallicTextureIndex = 0;
+        material->roughnessTextureSet = false;
+        material->roughnessTextureInstanceId = -1;
+        material->roughnessTextureIndex = 0;
+        material->ambientOcclusionTextureSet = false;
+        material->ambientOcclusionTextureInstanceId = -1;
+        material->ambientOcclusionTextureIndex = 0;
 
         defaultMaterial_.Unmap();
 
-        defaultMaterialBufferInfo_.buffer = defaultMaterial_.GetBuffer();
-        defaultMaterialBufferInfo_.offset = 0;
-        defaultMaterialBufferInfo_.range = defaultMaterial_.GetSize();
+        graphicsInterface_->EnsureOutsideRenderPass();
 
+        
+        
+        // Create blank texture
         blankTexture_ = Vulkan::Image(device_, physicalDeviceMemoryProperties_);
 
-        // Create blank texture
         blankTexture_.Create(
             "blankTexture",
             VK_IMAGE_TYPE_2D,
@@ -1204,7 +1218,6 @@ namespace PixelsForGlory::Vulkan
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
 
         VkImageSubresourceRange subresourceRange = {};
         subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -1216,9 +1229,23 @@ namespace PixelsForGlory::Vulkan
         VK_CHECK("vkCreateImageView", blankTexture_.CreateImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, subresourceRange));
         VK_CHECK("vkCreateSampler", blankTexture_.CreateSampler(VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT));
 
-        blankTextureImageInfo_.sampler = blankTexture_.GetSampler();
-        blankTextureImageInfo_.imageView = blankTexture_.GetImageView();
-        blankTextureImageInfo_.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        assert(blankTexture_.GetImageView() != VK_NULL_HANDLE);
+        assert(blankTexture_.GetSampler() != VK_NULL_HANDLE);
+
+        UnityVulkanRecordingState recordingState;
+        if (graphicsInterface_->CommandRecordingState(&recordingState, kUnityVulkanGraphicsQueueAccess_DontCare))
+        {
+            Vulkan::Image::UpdateImageBarrier(
+                recordingState.commandBuffer,
+                blankTexture_.GetImage(),
+                subresourceRange,
+                VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_READ_BIT,
+                VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        }
+        else
+        {
+            PFG_EDITORLOGERROR("Cannot get command buffer to update blank texture image barrier");
+        }
 
         meshInstancesAttributesBufferInfos_.resize(0);
         meshInstancesFacesBufferInfos_.resize(0);
@@ -1405,8 +1432,8 @@ namespace PixelsForGlory::Vulkan
         if (!graphicsInterface_->AccessTexture(texture,
                                                UnityVulkanWholeImage,
                                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                               VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                               VK_ACCESS_TRANSFER_WRITE_BIT,
+                                               VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                                               VK_ACCESS_SHADER_READ_BIT,
                                                kUnityVulkanResourceAccess_PipelineBarrier,
                                                &image))
         {
@@ -1414,7 +1441,7 @@ namespace PixelsForGlory::Vulkan
             return RayTracerAPI::AddResourceResult::Error;
         }
 
-        auto index = texturePool_.add(textureInstanceId, std::make_unique<Vulkan::Image>(device_, physicalDeviceMemoryProperties_));
+        texturePool_.add(textureInstanceId, std::make_unique<Vulkan::Image>(device_, physicalDeviceMemoryProperties_));
 
         VkImageSubresourceRange subresourceRange = {};
         subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -1423,9 +1450,12 @@ namespace PixelsForGlory::Vulkan
         subresourceRange.baseArrayLayer = 0;
         subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
 
-        texturePool_[index]->LoadFromUnity("texture", image.image, image.format);
-        VK_CHECK("vkCreateImageView", texturePool_[index]->CreateImageView(VK_IMAGE_VIEW_TYPE_2D, image.format, subresourceRange));
-        VK_CHECK("vkCreateSampler", texturePool_[index]->CreateSampler(VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT));
+        texturePool_[textureInstanceId]->LoadFromUnity("texture", image.image, image.format);
+
+        VK_CHECK("vkCreateImageView", texturePool_[textureInstanceId]->CreateImageView(VK_IMAGE_VIEW_TYPE_2D, image.format, subresourceRange));
+        VK_CHECK("vkCreateSampler", texturePool_[textureInstanceId]->CreateSampler(VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT));
+
+        UpdateMaterialsTextureIndices();
 
         PFG_EDITORLOG("Added texture (textureInstanceId: " + std::to_string(textureInstanceId) + ")")
 
@@ -1449,6 +1479,8 @@ namespace PixelsForGlory::Vulkan
 
         texturePool_.remove(textureInstanceId);
 
+        UpdateMaterialsTextureIndices();
+
         PFG_EDITORLOG("Removed texture (textureInstanceId: " + std::to_string(textureInstanceId) + ")");
     }
 
@@ -1458,12 +1490,18 @@ namespace PixelsForGlory::Vulkan
                                                            float transmittance_r, float transmittance_g, float transmittance_b,
                                                            float metallic,
                                                            float roughness,
-                                                           float indexOfRefractionInstanceId,
+                                                           float indexOfRefraction,
+                                                           bool albedoTextureSet,
                                                            int albedoTextureInstanceId,
+                                                           bool emissionTextureSet,
                                                            int emissionTextureInstanceId,
+                                                           bool normalTextureSet,
                                                            int normalTextureInstanceId,
+                                                           bool metallicTextureSet,
                                                            int metallicTextureInstanceId,
+                                                           bool roughnessTextureSet,
                                                            int roughnessTextureInstanceId,
+                                                           bool ambientOcclusionTextureSet,
                                                            int ambientOcclusionTextureInstanceId)
     {
         if (materialPool_.find(materialInstanceId) != materialPool_.in_use_end())
@@ -1491,12 +1529,18 @@ namespace PixelsForGlory::Vulkan
                        transmittance_r, transmittance_g, transmittance_b,
                        metallic, 
                        roughness, 
-                       indexOfRefractionInstanceId,
-                       albedoTextureInstanceId, 
-                       emissionTextureInstanceId, 
-                       normalTextureInstanceId, 
-                       metallicTextureInstanceId, 
+                       indexOfRefraction,
+                       albedoTextureSet,
+                       albedoTextureInstanceId,
+                       emissionTextureSet,
+                       emissionTextureInstanceId,
+                       normalTextureSet,
+                       normalTextureInstanceId,
+                       metallicTextureSet,
+                       metallicTextureInstanceId,
+                       roughnessTextureSet,
                        roughnessTextureInstanceId,
+                       ambientOcclusionTextureSet,
                        ambientOcclusionTextureInstanceId);
 
         PFG_EDITORLOG("Added material (materialInstanceId: " + std::to_string(materialInstanceId) + ")");
@@ -1511,11 +1555,17 @@ namespace PixelsForGlory::Vulkan
                                    float metallic,
                                    float roughness,
                                    float indexOfRefraction,
+                                   bool albedoTextureSet,
                                    int albedoTextureInstanceId,
+                                   bool emissionTextureSet,
                                    int emissionTextureInstanceId,
+                                   bool normalTextureSet,
                                    int normalTextureInstanceId,
+                                   bool metallicTextureSet,
                                    int metallicTextureInstanceId,
+                                   bool roughnessTextureSet,
                                    int roughnessTextureInstanceId,
+                                   bool ambientOcclusionTextureSet,
                                    int ambientOcclusionTextureInstanceId)
     {
         auto material = reinterpret_cast<ShaderMaterialData*>(materialPool_[materialInstanceId]->Map());
@@ -1526,12 +1576,27 @@ namespace PixelsForGlory::Vulkan
         material->metallic = metallic;
         material->roughness = roughness;
         material->indexOfRefraction = indexOfRefraction;
-        material->albedoTexture = albedoTextureInstanceId;
-        material->emissionTexture = emissionTextureInstanceId;
-        material->normalTexture = normalTextureInstanceId;
-        material->metallicTexture = metallicTextureInstanceId;
-        material->roughnessTexture = roughnessTextureInstanceId;
-        material->ambientOcclusionTexture = ambientOcclusionTextureInstanceId;
+        material->albedoTextureSet = albedoTextureSet;
+        material->albedoTextureInstanceId = albedoTextureInstanceId;
+        material->albedoTextureIndex = 0;
+        material->emissionTextureSet = emissionTextureSet;
+        material->emissionTextureInstanceId = emissionTextureInstanceId;
+        material->emissionTextureIndex = 0;
+        material->normalTextureSet = normalTextureSet;
+        material->normalTextureInstanceId = normalTextureInstanceId;
+        material->normalTextureIndex = 0;
+        material->metallicTextureSet = metallicTextureSet;
+        material->metallicTextureInstanceId = metallicTextureInstanceId;
+        material->metallicTextureIndex = 0;
+        material->roughnessTextureSet = roughnessTextureSet;
+        material->roughnessTextureInstanceId = roughnessTextureInstanceId;
+        material->roughnessTextureIndex = 0;
+        material->ambientOcclusionTextureSet = ambientOcclusionTextureSet;
+        material->ambientOcclusionTextureInstanceId = ambientOcclusionTextureInstanceId;
+        material->ambientOcclusionTextureIndex = 0;
+
+        // Update texture indices 
+        UpdateMaterialTextureIndices(material);
 
         materialPool_[materialInstanceId]->Unmap();
     }
@@ -1633,7 +1698,7 @@ namespace PixelsForGlory::Vulkan
         currentStats.RegisteredSharedMeshes = static_cast<uint32_t>(sharedMeshesPool_.in_use_size());
         currentStats.RegisteredMeshInstances = static_cast<uint32_t>(meshInstancePool_.in_use_size());
         currentStats.RegisteredMaterials = static_cast<uint32_t>(materialPool_.in_use_size());
-        currentStats.RegisteredTextures = 0;
+        currentStats.RegisteredTextures = static_cast<uint32_t>(texturePool_.in_use_size());
         currentStats.RegisteredRenderTargets = static_cast<uint32_t>(renderTargets_.size());
         
         for (auto renderTargetItr = renderTargets_.begin(); renderTargetItr != renderTargets_.end(); ++renderTargetItr)
@@ -2297,9 +2362,31 @@ namespace PixelsForGlory::Vulkan
         //       Make sure all infos can map back to an instance with the same index as used in BuildTlas!
         uint32_t i;
 
+
+        textureImageInfos_.clear();
+        textureImageInfos_.resize(texturePool_.in_use_size() + 1);
+        {
+            const Vulkan::Image& image = blankTexture_;
+            textureImageInfos_[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            textureImageInfos_[0].imageView = blankTexture_.GetImageView();
+            textureImageInfos_[0].sampler = blankTexture_.GetSampler();
+        }
+
+        i = 1;
+        for (auto itr = texturePool_.in_use_begin(); itr != texturePool_.in_use_end(); ++itr)
+        {
+            auto textureInstanceId = (*itr).first;
+            {
+                const std::unique_ptr<Vulkan::Image>& image = texturePool_[textureInstanceId];
+                textureImageInfos_[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                textureImageInfos_[i].imageView = image->GetImageView();
+                textureImageInfos_[i].sampler = image->GetSampler();
+            }
+            ++i;
+        }
+
         materialBufferInfos_.clear();
         materialBufferInfos_.resize(materialPool_.in_use_size() + 1);
-
         {
             const Vulkan::Buffer& buffer = defaultMaterial_;
             materialBufferInfos_[0].buffer = buffer.GetBuffer();
@@ -2308,7 +2395,6 @@ namespace PixelsForGlory::Vulkan
 
         }
 
-        std::map<int, uint32_t> materialInstanceIdToShaderIndex;
         i = 1;
         for (auto itr = materialPool_.in_use_begin(); itr != materialPool_.in_use_end(); ++itr)
         {
@@ -2319,7 +2405,6 @@ namespace PixelsForGlory::Vulkan
                 materialBufferInfos_[i].offset = 0;
                 materialBufferInfos_[i].range = buffer->GetSize();
             }
-            materialInstanceIdToShaderIndex.insert(std::make_pair(materialInstanceId, i));
             ++i;
         }
 
@@ -2607,10 +2692,10 @@ namespace PixelsForGlory::Vulkan
                 materialsBufferWrite.dstSet = descriptorSetsData.descriptorSets[DESCRIPTOR_SET_MATERIALS_DATA];
                 materialsBufferWrite.dstBinding = DESCRIPTOR_BINDING_MATERIALS_DATA;
                 materialsBufferWrite.dstArrayElement = 0;
-                materialsBufferWrite.descriptorCount = static_cast<uint32_t>(materialBufferInfos_.size() == 0 ? 1 : static_cast<uint32_t>(materialBufferInfos_.size()));
+                materialsBufferWrite.descriptorCount = static_cast<uint32_t>(materialBufferInfos_.size());
                 materialsBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                 materialsBufferWrite.pImageInfo = nullptr;
-                materialsBufferWrite.pBufferInfo = materialBufferInfos_.size() == 0 ? &defaultMaterialBufferInfo_ : materialBufferInfos_.data();
+                materialsBufferWrite.pBufferInfo = materialBufferInfos_.data();
                 materialsBufferWrite.pTexelBufferView = nullptr;
 
                 descriptorSetsData.storage_buffer_count += materialsBufferWrite.descriptorCount;
@@ -2628,9 +2713,9 @@ namespace PixelsForGlory::Vulkan
                 texturesBufferWrite.dstSet = descriptorSetsData.descriptorSets[DESCRIPTOR_SET_TEXTURES_DATA];
                 texturesBufferWrite.dstBinding = DESCRIPTOR_BINDING_TEXTURES_DATA;
                 texturesBufferWrite.dstArrayElement = 0;
-                texturesBufferWrite.descriptorCount = static_cast<uint32_t>(textureImageInfos_.size() == 0 ? 1 : static_cast<uint32_t>(textureImageInfos_.size()));
+                texturesBufferWrite.descriptorCount = static_cast<uint32_t>(textureImageInfos_.size());
                 texturesBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                texturesBufferWrite.pImageInfo = textureImageInfos_.size() == 0 ? &blankTextureImageInfo_ : textureImageInfos_.data();
+                texturesBufferWrite.pImageInfo = textureImageInfos_.data();
                 texturesBufferWrite.pBufferInfo = nullptr;
                 texturesBufferWrite.pTexelBufferView = nullptr;
 
@@ -2662,6 +2747,59 @@ namespace PixelsForGlory::Vulkan
         }
 
         vkUpdateDescriptorSets(device_, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, VK_NULL_HANDLE);
+    }
+
+    void RayTracer::UpdateMaterialsTextureIndices()
+    {
+        for (auto itr = materialPool_.in_use_begin(); itr != materialPool_.in_use_end(); ++itr)
+        {
+            auto materialInstanceId = (*itr).first;
+            auto material = reinterpret_cast<ShaderMaterialData*>(materialPool_[materialInstanceId]->Map());
+            UpdateMaterialTextureIndices(material);
+            materialPool_[materialInstanceId]->Unmap();
+        }
+    }
+
+    void RayTracer::UpdateMaterialTextureIndices(ShaderMaterialData * const material)
+    {
+        // Remember, i == 0 is the "default texture"
+        int i = 1;
+        for (auto itr = texturePool_.in_use_begin(); itr != texturePool_.in_use_end(); ++itr)
+        {
+            auto textureInstanceId = (*itr).first;
+            auto texture = (*itr).second;
+
+            if (material->albedoTextureInstanceId == textureInstanceId)
+            {
+                material->albedoTextureIndex = i;
+            }
+
+            if (material->ambientOcclusionTextureInstanceId == textureInstanceId)
+            {
+                material->ambientOcclusionTextureIndex = i;
+            }
+
+            if (material->emissionTextureInstanceId == textureInstanceId)
+            {
+                material->emissionTextureIndex = i;
+            }
+            
+            if (material->metallicTextureInstanceId == textureInstanceId)
+            {
+                material->metallicTextureIndex = i;
+            }
+
+            if (material->normalTextureInstanceId == textureInstanceId)
+            {
+                material->normalTextureIndex = i;
+            }
+
+            if (material->roughnessTextureInstanceId == textureInstanceId)
+            {
+                material->roughnessTextureIndex = i;
+            }
+            ++i;
+        }
     }
 
     void RayTracer::GarbageCollect(uint64_t frameCount)

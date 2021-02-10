@@ -90,7 +90,7 @@ namespace PixelsForGlory
         /// <param name="uvCount"></param>
         /// <param name="indices"></param>
         /// <param name="indexCount"></param>
-        virtual AddResourceResult AddSharedMesh(int sharedMeshInstanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount) = 0;
+        virtual AddResourceResult AddSharedMesh(int sharedMeshInstanceId, float* verticesArray, float* normalsArray, float* tangentsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount) = 0;
 
         /// <summary>
         /// Add transform for an instance to be build on the tlas
@@ -156,11 +156,17 @@ namespace PixelsForGlory
                                               float metallic,
                                               float roughness,
                                               float indexOfRefraction,
+                                              bool albedoTextureSet,
                                               int albedoTextureInstanceId,
+                                              bool emissionTextureSet,
                                               int emissionTextureInstanceId,
+                                              bool normalTextureSet,
                                               int normalTextureInstanceId,
+                                              bool metallicTextureSet,
                                               int metallicTextureInstanceId,
+                                              bool roughnessTextureSet,
                                               int roughnessTextureInstanceId,
+                                              bool ambientOcclusionTextureSet,
                                               int ambientOcclusionTextureInstanceId) = 0;
 
         virtual void UpdateMaterial(int materialInstanceId,
@@ -170,11 +176,17 @@ namespace PixelsForGlory
                                     float metallic,
                                     float roughness,
                                     float indexOfRefraction,
+                                    bool albedoTextureSet,
                                     int albedoTextureInstanceId,
+                                    bool emissionTextureSet,
                                     int emissionTextureInstanceId,
+                                    bool normalTextureSet,
                                     int normalTextureInstanceId,
+                                    bool metallicTextureSet,
                                     int metallicTextureInstanceId,
+                                    bool roughnessTextureSet,
                                     int roughnessTextureInstanceId,
+                                    bool ambientOcclusionTextureSet,
                                     int ambientOcclusionTextureInstanceId) = 0;
 
         virtual void RemoveMaterial(int materialInstanceId) = 0;

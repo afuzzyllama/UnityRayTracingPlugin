@@ -14,7 +14,7 @@ namespace PixelsForGlory
         public static extern int SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, IntPtr destination);
 
         [DllImport("RayTracingPlugin")]
-        public static extern int AddSharedMesh(int sharedMeshInstanceId, IntPtr vertices, IntPtr normals, IntPtr uvs, int vertexCount, IntPtr indices, int indexCount);
+        public static extern int AddSharedMesh(int sharedMeshInstanceId, IntPtr vertices, IntPtr normals, IntPtr tangets, IntPtr uvs, int vertexCount, IntPtr indices, int indexCount);
 
         [DllImport("RayTracingPlugin")]
         public static extern int AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, int materialInstanceId, IntPtr l2wMatrix);
@@ -63,11 +63,17 @@ namespace PixelsForGlory
                                              float metallic,
                                              float roughness,
                                              float indexOfRefraction,
+                                             bool albedoTextureSet,
                                              int albedoTextureInstanceId,
+                                             bool emissionTextureSet,
                                              int emissionTextureInstanceId,
+                                             bool normalTextureSet,
                                              int normalTextureInstanceId,
+                                             bool metallicTextureSet,
                                              int metallicTextureInstanceId,
+                                             bool roughnessTextureSet,
                                              int roughnessTextureInstanceId,
+                                             bool ambientOcclusionTextureSet,
                                              int ambientOcclusionTextureInstanceId);
         [DllImport("RayTracingPlugin")]
         public static extern void UpdateMaterial(int materialInstanceId,
@@ -77,11 +83,17 @@ namespace PixelsForGlory
                                                  float metallic,
                                                  float roughness,
                                                  float indexOfRefraction,
+                                                 bool albedoTextureSet,
                                                  int albedoTextureInstanceId,
+                                                 bool emissionTextureSet,
                                                  int emissionTextureInstanceId,
+                                                 bool normalTextureSet,
                                                  int normalTextureInstanceId,
+                                                 bool metallicTextureSet,
                                                  int metallicTextureInstanceId,
+                                                 bool roughnessTextureSet,
                                                  int roughnessTextureInstanceId,
+                                                 bool ambientOcclusionTextureSet,
                                                  int ambientOcclusionTextureInstanceId);
 
         [DllImport("RayTracingPlugin")]

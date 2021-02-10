@@ -178,7 +178,7 @@ namespace PixelsForGlory::Vulkan
         virtual void SetShaderFolder(std::wstring shaderFolder);
         virtual int SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, void* textureHandle);
         virtual bool ProcessDeviceEvent(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces);
-        virtual AddResourceResult AddSharedMesh(int sharedMeshInstanceId, float* verticesArray, float* normalsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount);
+        virtual AddResourceResult AddSharedMesh(int sharedMeshInstanceId, float* verticesArray, float* normalsArray, float* tangentsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount);
         virtual AddResourceResult AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, int materialInstanceId, float* l2wMatrix);
         virtual void UpdateTlasInstance(int gameObjectInstanceId, int materialInstanceId, float* l2wMatrix);
         virtual void RemoveTlasInstance(int gameObjectInstanceId);
@@ -199,11 +199,17 @@ namespace PixelsForGlory::Vulkan
                                               float metallic, 
                                               float roughness, 
                                               float indexOfRefraction, 
+                                              bool albedoTextureSet,
                                               int albedoTextureInstanceId,
+                                              bool emissionTextureSet,
                                               int emissionTextureInstanceId,
+                                              bool normalTextureSet,
                                               int normalTextureInstanceId,
+                                              bool metallicTextureSet,
                                               int metallicTextureInstanceId,
+                                              bool roughnessTextureSet,
                                               int roughnessTextureInstanceId,
+                                              bool ambientOcclusionTextureSet,
                                               int ambientOcclusionTextureInstanceId);
               
         
@@ -214,11 +220,17 @@ namespace PixelsForGlory::Vulkan
                                     float metallic,
                                     float roughness,
                                     float indexOfRefraction,
+                                    bool albedoTextureSet,
                                     int albedoTextureInstanceId,
+                                    bool emissionTextureSet,
                                     int emissionTextureInstanceId,
+                                    bool normalTextureSet,
                                     int normalTextureInstanceId,
+                                    bool metallicTextureSet,
                                     int metallicTextureInstanceId,
+                                    bool roughnessTextureSet,
                                     int roughnessTextureInstanceId,
+                                    bool ambientOcclusionTextureSet,
                                     int ambientOcclusionTextureInstanceId);
 
         virtual void RemoveMaterial(int materialInstanceId);
@@ -295,13 +307,11 @@ namespace PixelsForGlory::Vulkan
        std::vector<VkDescriptorBufferInfo> lightsBufferInfos_;
 
        Vulkan::Image blankTexture_;
-       VkDescriptorImageInfo blankTextureImageInfo_;
        
        resourcePool<int, std::unique_ptr<Vulkan::Image>> texturePool_;
        std::vector<VkDescriptorImageInfo> textureImageInfos_;
 
        Vulkan::Buffer defaultMaterial_;
-       VkDescriptorBufferInfo defaultMaterialBufferInfo_;
 
        resourcePool<int, std::unique_ptr<Vulkan::Buffer>> materialPool_;
        std::vector<VkDescriptorBufferInfo> materialBufferInfos_;
@@ -382,6 +392,9 @@ namespace PixelsForGlory::Vulkan
         /// Update the descriptor sets for the shader
         /// </summary>
         void UpdateDescriptorSets(int cameraInstanceId, uint64_t currentFrameNumber);
+
+        void UpdateMaterialsTextureIndices();
+        void UpdateMaterialTextureIndices(ShaderMaterialData * const material);
 
         void GarbageCollect(uint64_t frameCount);
     };

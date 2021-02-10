@@ -38,8 +38,12 @@ class RayTracableMeshFilter : MonoBehaviour
 
     private void AddMeshData()
     {
+        // Make sure we got these calculated!
+        _meshFilter.sharedMesh.RecalculateTangents();
+
         var vertices = _meshFilter.sharedMesh.vertices;
         var normals = _meshFilter.sharedMesh.normals;
+        var tangents = _meshFilter.sharedMesh.tangents;
         var uvs = _meshFilter.sharedMesh.uv;
         var indices = _meshFilter.sharedMesh.triangles;
 
@@ -48,12 +52,14 @@ class RayTracableMeshFilter : MonoBehaviour
 
         var verticesHandle = GCHandle.Alloc(vertices, GCHandleType.Pinned);
         var normalsHandle = GCHandle.Alloc(normals, GCHandleType.Pinned);
+        var tangetsHandle = GCHandle.Alloc(tangents, GCHandleType.Pinned);
         var uvsHandle = GCHandle.Alloc(uvs, GCHandleType.Pinned);
         var indicesHandle = GCHandle.Alloc(indices, GCHandleType.Pinned);
 
         SharedMeshRegisteredWithRayTracer = (PixelsForGlory.RayTracingPlugin.AddSharedMesh(SharedMeshInstanceId,
                                                                                             verticesHandle.AddrOfPinnedObject(),
                                                                                             normalsHandle.AddrOfPinnedObject(),
+                                                                                            tangetsHandle.AddrOfPinnedObject(),
                                                                                             uvsHandle.AddrOfPinnedObject(),
                                                                                             vertices.Length,
                                                                                             indicesHandle.AddrOfPinnedObject(),
@@ -61,6 +67,7 @@ class RayTracableMeshFilter : MonoBehaviour
 
         verticesHandle.Free();
         normalsHandle.Free();
+        tangetsHandle.Free();
         uvsHandle.Free();
         indicesHandle.Free();
     }

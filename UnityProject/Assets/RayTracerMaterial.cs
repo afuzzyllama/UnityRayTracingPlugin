@@ -27,7 +27,13 @@ public class RayTracerMaterial : ScriptableObject
 
     [ReadOnly] public int InstanceId;
 
-    private ValueMonitor _monitor = new ValueMonitor();
+    private ValueMonitor _materialMonitor = new ValueMonitor();
+    private ValueMonitor _albedoTextureMonitor = new ValueMonitor();
+    private ValueMonitor _emissionTextureMonitor = new ValueMonitor();
+    private ValueMonitor _normalTextureMonitor = new ValueMonitor();
+    private ValueMonitor _metallicTextureMonitor = new ValueMonitor();
+    private ValueMonitor _roughnessTextureMonitor = new ValueMonitor();
+    private ValueMonitor _ambientOcclusionTextureMonitor = new ValueMonitor();
 
     private void OnEnable()
     {
@@ -37,18 +43,56 @@ public class RayTracerMaterial : ScriptableObject
     private void Initialize()
     {
          InstanceId = GetInstanceID();
-        _monitor.AddField(this, typeof(RayTracerMaterial), "albedoTexture", albedoTexture == null ? -1 : albedoTexture.GetInstanceID());
-        _monitor.AddField(this, typeof(RayTracerMaterial), "albedo", albedo);
-        _monitor.AddField(this, typeof(RayTracerMaterial), "emissionTexture", emissionTexture == null ? -1 : emissionTexture.GetInstanceID());
-        _monitor.AddField(this, typeof(RayTracerMaterial), "emission", emission);
-        _monitor.AddField(this, typeof(RayTracerMaterial), "normalTexture", normalTexture == null ? -1 : normalTexture.GetInstanceID());
-        _monitor.AddField(this, typeof(RayTracerMaterial), "metallic", metallic);
-        _monitor.AddField(this, typeof(RayTracerMaterial), "metallicTexture", metallicTexture == null ? -1 : metallicTexture.GetInstanceID());
-        _monitor.AddField(this, typeof(RayTracerMaterial), "roughness", roughness);
-        _monitor.AddField(this, typeof(RayTracerMaterial), "roughnessTexture", roughnessTexture == null ? -1 : roughnessTexture.GetInstanceID());
-        _monitor.AddField(this, typeof(RayTracerMaterial), "ambientOcclusionTexture", ambientOcclusionTexture == null ? -1 : ambientOcclusionTexture.GetInstanceID());
-        _monitor.AddField(this, typeof(RayTracerMaterial), "indexOfRefraction", indexOfRefraction);
-        _monitor.AddField(this, typeof(RayTracerMaterial), "transmittance", transmittance);
+
+        _albedoTextureMonitor.AddField(this, typeof(RayTracerMaterial), "albedoTexture", albedoTexture);
+        _emissionTextureMonitor.AddField(this, typeof(RayTracerMaterial), "emissionTexture", albedoTexture);
+        _normalTextureMonitor.AddField(this, typeof(RayTracerMaterial), "normalTexture", albedoTexture);
+        _metallicTextureMonitor.AddField(this, typeof(RayTracerMaterial), "metallicTexture", albedoTexture);
+        _roughnessTextureMonitor.AddField(this, typeof(RayTracerMaterial), "roughnessTexture", albedoTexture);
+        _ambientOcclusionTextureMonitor.AddField(this, typeof(RayTracerMaterial), "ambientOcclusionTexture", albedoTexture);
+
+        _materialMonitor.AddField(this, typeof(RayTracerMaterial), "albedoTexture", albedoTexture);
+        _materialMonitor.AddField(this, typeof(RayTracerMaterial), "albedo", albedo);
+        _materialMonitor.AddField(this, typeof(RayTracerMaterial), "emissionTexture", emissionTexture);
+        _materialMonitor.AddField(this, typeof(RayTracerMaterial), "emission", emission);
+        _materialMonitor.AddField(this, typeof(RayTracerMaterial), "normalTexture", normalTexture);
+        _materialMonitor.AddField(this, typeof(RayTracerMaterial), "metallic", metallic);
+        _materialMonitor.AddField(this, typeof(RayTracerMaterial), "metallicTexture", metallicTexture);
+        _materialMonitor.AddField(this, typeof(RayTracerMaterial), "roughness", roughness);
+        _materialMonitor.AddField(this, typeof(RayTracerMaterial), "roughnessTexture", roughnessTexture);
+        _materialMonitor.AddField(this, typeof(RayTracerMaterial), "ambientOcclusionTexture", ambientOcclusionTexture);
+        _materialMonitor.AddField(this, typeof(RayTracerMaterial), "indexOfRefraction", indexOfRefraction);
+        _materialMonitor.AddField(this, typeof(RayTracerMaterial), "transmittance", transmittance);
+
+        if(albedoTexture != null)
+        {
+            PixelsForGlory.RayTracingPlugin.AddTexture(albedoTexture.GetInstanceID(), albedoTexture.GetNativeTexturePtr());
+        }
+
+        if (emissionTexture != null)
+        {
+            PixelsForGlory.RayTracingPlugin.AddTexture(emissionTexture.GetInstanceID(), emissionTexture.GetNativeTexturePtr());
+        }
+
+        if (normalTexture != null)
+        {
+            PixelsForGlory.RayTracingPlugin.AddTexture(normalTexture.GetInstanceID(), normalTexture.GetNativeTexturePtr());
+        }
+
+        if (metallicTexture != null)
+        {
+            PixelsForGlory.RayTracingPlugin.AddTexture(metallicTexture.GetInstanceID(), metallicTexture.GetNativeTexturePtr());
+        }
+
+        if (roughnessTexture != null)
+        {
+            PixelsForGlory.RayTracingPlugin.AddTexture(roughnessTexture.GetInstanceID(), roughnessTexture.GetNativeTexturePtr());
+        }
+
+        if (ambientOcclusionTexture != null)
+        {
+            PixelsForGlory.RayTracingPlugin.AddTexture(ambientOcclusionTexture.GetInstanceID(), ambientOcclusionTexture.GetNativeTexturePtr());
+        }
 
         PixelsForGlory.RayTracingPlugin.AddMaterial(InstanceId,
                                                     albedo.r, albedo.g, albedo.b,
@@ -57,45 +101,75 @@ public class RayTracerMaterial : ScriptableObject
                                                     metallic,
                                                     roughness,
                                                     indexOfRefraction,
-                                                   -1,
-                                                   -1,
-                                                   -1,
-                                                   -1,
-                                                   -1,
-                                                   -1);
-        //RayTracerMaterial.albedoTexture.GetInstanceID(),
-        //RayTracerMaterial.emissionTexture.GetInstanceID(),
-        //RayTracerMaterial.normalTexture.GetInstanceID(),
-        //RayTracerMaterial.metallicTexture.GetInstanceID(),
-        //RayTracerMaterial.roughnessTexture.GetInstanceID(),
-        //RayTracerMaterial.ambientOcclusionTexture.GetInstanceID());
+                                                    albedoTexture != null ? true : false,
+                                                    albedoTexture != null ? albedoTexture.GetInstanceID() : -1,
+                                                    emissionTexture != null ? true : false,
+                                                    emissionTexture != null ? emissionTexture.GetInstanceID() : -1,
+                                                    normalTexture != null ? true : false,
+                                                    normalTexture != null ? normalTexture.GetInstanceID() : -1,
+                                                    metallicTexture != null ? true : false,
+                                                    metallicTexture != null ? metallicTexture.GetInstanceID() : -1,
+                                                    roughnessTexture != null ? true : false,
+                                                    roughnessTexture != null ? roughnessTexture.GetInstanceID() : -1,
+                                                    ambientOcclusionTexture != null ? true : false,
+                                                    ambientOcclusionTexture != null ? ambientOcclusionTexture.GetInstanceID() : -1);
     }
 
     public void Update()
     {
-        if(!_monitor.CheckForUpdates())
+        if(_albedoTextureMonitor.CheckForUpdates() && albedoTexture != null)
         {
-            return;
+            PixelsForGlory.RayTracingPlugin.AddTexture(albedoTexture.GetInstanceID(), albedoTexture.GetNativeTexturePtr());
         }
 
-        PixelsForGlory.RayTracingPlugin.UpdateMaterial(InstanceId,
+        if (_emissionTextureMonitor.CheckForUpdates() && emissionTexture != null)
+        {
+            PixelsForGlory.RayTracingPlugin.AddTexture(emissionTexture.GetInstanceID(), emissionTexture.GetNativeTexturePtr());
+        }
+
+        if (_normalTextureMonitor.CheckForUpdates() && normalTexture != null)
+        {
+            PixelsForGlory.RayTracingPlugin.AddTexture(normalTexture.GetInstanceID(), normalTexture.GetNativeTexturePtr());
+        }
+
+        if (_metallicTextureMonitor.CheckForUpdates() && metallicTexture != null)
+        {
+            PixelsForGlory.RayTracingPlugin.AddTexture(metallicTexture.GetInstanceID(), metallicTexture.GetNativeTexturePtr());
+        }
+
+        if (_roughnessTextureMonitor.CheckForUpdates() && roughnessTexture != null)
+        {
+            PixelsForGlory.RayTracingPlugin.AddTexture(roughnessTexture.GetInstanceID(), roughnessTexture.GetNativeTexturePtr());
+        }
+        
+        if (_ambientOcclusionTextureMonitor.CheckForUpdates() && ambientOcclusionTexture != null)
+        {
+            PixelsForGlory.RayTracingPlugin.AddTexture(ambientOcclusionTexture.GetInstanceID(), ambientOcclusionTexture.GetNativeTexturePtr());
+        }
+
+        if (_materialMonitor.CheckForUpdates())
+        {
+            PixelsForGlory.RayTracingPlugin.UpdateMaterial(InstanceId,
                                                        albedo.r, albedo.g, albedo.b,
                                                        emission.r, emission.g, emission.b,
                                                        transmittance.r, transmittance.g, transmittance.b,
                                                        metallic,
                                                        roughness,
                                                        indexOfRefraction,
-                                                       -1,
-                                                       -1,
-                                                       -1,
-                                                       -1,
-                                                       -1,
-                                                       -1);
-        //RayTracerMaterial.albedoTexture.GetInstanceID(),
-        //RayTracerMaterial.emissionTexture.GetInstanceID(),
-        //RayTracerMaterial.normalTexture.GetInstanceID(),
-        //RayTracerMaterial.metallicTexture.GetInstanceID(),
-        //RayTracerMaterial.roughnessTexture.GetInstanceID(),
-        //RayTracerMaterial.ambientOcclusionTexture.GetInstanceID());
+                                                       albedoTexture != null ? true : false,
+                                                       albedoTexture != null ? albedoTexture.GetInstanceID() : -1,
+                                                       emissionTexture != null ? true : false,
+                                                       emissionTexture != null ? emissionTexture.GetInstanceID() : -1,
+                                                       normalTexture != null ? true : false,
+                                                       normalTexture != null ? normalTexture.GetInstanceID() : -1,
+                                                       metallicTexture != null ? true : false,
+                                                       metallicTexture != null ? metallicTexture.GetInstanceID() : -1,
+                                                       roughnessTexture != null ? true : false,
+                                                       roughnessTexture != null ? roughnessTexture.GetInstanceID() : -1,
+                                                       ambientOcclusionTexture != null ? true : false,
+                                                       ambientOcclusionTexture != null ? ambientOcclusionTexture.GetInstanceID() : -1);
+        }
+
+        
     }
 }

@@ -84,51 +84,50 @@ bool InShadow(in vec3 hitPosition, in vec3 hitNormal, in uint lightType, in vec3
         (lightType == SHADER_LIGHTTYPE_POINT ? distance : CameraData.farClipPlane), // tmax,
         LOCATION_SHADOW_RAY);
 
-    return ShadowRay.distance > 0.0f;
-//     bool firstHit = true;
-//     while(ShadowRay.distance > 0.0f)
-//     {
-//         // We hit something
-//         hit = true;
+    bool firstHit = true;
+    while(ShadowRay.distance > 0.0f)
+    {
+        // We hit something
+        hit = true;
         
-//         ShaderMaterialData hitMaterial = MaterialDataArray[ShadowRay.materialIndex].MaterialData;
+        ShaderMaterialData hitMaterial = MaterialDataArray[ShadowRay.materialIndex].MaterialData;
 
-//         // Figure out if light can pass through this material or not
-// //         if(hitMaterial.transmittance.r == 0.0f && hitMaterial.transmittance.g == 0.0f && hitMaterial.transmittance.b == 0.0f)
-// //         {
-// //             // light cannot pass through material, make the shadow black
-// //             shadowColor = vec3(0.0f);
-// //             break;
-// //         }
+        // Figure out if light can pass through this material or not
+        if(hitMaterial.transmittance.r == 0.0f && hitMaterial.transmittance.g == 0.0f && hitMaterial.transmittance.b == 0.0f)
+        {
+            // light cannot pass through material, make the shadow black
+            shadowColor = vec3(0.0f);
+            break;
+        }
         
-//          if(firstHit == true) 
-//          {
-//              // If this is the first hit, set the shadow color to the calculated light color
-//              shadowColor = lightColor;
-//              firstHit = false;
-//          }
-        
-//          // Mix the current color and the shadow hit color by 1.0 - transmittance to get the shadow's influence on the current color
-//          // Then attenuate by the transmittance
-// //         shadowColor = vec3(mix(shadowColor.r, ShadowRay.albedo.r, 1.0f - hitMaterial.transmittance.r), mix(shadowColor.g, ShadowRay.albedo.g, 1.0f - hitMaterial.transmittance.g), mix(shadowColor.b, ShadowRay.albedo.b, 1.0f - hitMaterial.transmittance.b)) * hitMaterial.transmittance.rgb;
-       
-//          // Send another ray out to see if we hit anything else
-//          shadowRayOrigin = (shadowRayOrigin + shadowRayDirection * ShadowRay.distance) + hitNormal * nudgeFactor; // Nudge shadow ray slightly
-//          distance = length(lightPosition - shadowRayOrigin);  // Recalculate the distance for tmax from the current hit object
-//          traceRayEXT(Scene,
-//              shadowRayFlags,
-//              cullMask,
-//              SHADOW_HIT_SHADERS_INDEX,
-//              sbtRecordStride,
-//              SHADOW_MISS_SHADERS_INDEX,
-//              shadowRayOrigin,
-//              0.0f,
-//              shadowRayDirection,
-//              (lightType == SHADER_LIGHTTYPE_POINT ? distance : CameraData.farClipPlane), // tmax,
-//              LOCATION_SHADOW_RAY);
-//     }
-        
-    //return hit;
+      if(firstHit == true) 
+      {
+          // If this is the first hit, set the shadow color to the calculated light color
+          shadowColor = lightColor;
+          firstHit = false;
+      }
+  
+      // Mix the current color and the shadow hit color by 1.0 - transmittance to get the shadow's influence on the current color
+      // Then attenuate by the transmittance
+      shadowColor = vec3(mix(shadowColor.r, ShadowRay.albedo.r, 1.0f - hitMaterial.transmittance.r), mix(shadowColor.g, ShadowRay.albedo.g, 1.0f - hitMaterial.transmittance.g), mix(shadowColor.b, ShadowRay.albedo.b, 1.0f - hitMaterial.transmittance.b)) * hitMaterial.transmittance.rgb;
+ 
+      // Send another ray out to see if we hit anything else
+      shadowRayOrigin = (shadowRayOrigin + shadowRayDirection * ShadowRay.distance) + hitNormal * nudgeFactor; // Nudge shadow ray slightly
+      distance = length(lightPosition - shadowRayOrigin);  // Recalculate the distance for tmax from the current hit object
+      traceRayEXT(Scene,
+          shadowRayFlags,
+          cullMask,
+          SHADOW_HIT_SHADERS_INDEX,
+          sbtRecordStride,
+          SHADOW_MISS_SHADERS_INDEX,
+          shadowRayOrigin,
+          0.0f,
+          shadowRayDirection,
+          (lightType == SHADER_LIGHTTYPE_POINT ? distance : CameraData.farClipPlane), // tmax,
+          LOCATION_SHADOW_RAY);
+    }
+  
+    return hit;
 }
 
 
@@ -370,8 +369,8 @@ vec3 TraceRay() {
 
             // Attenuate the ray and trace the transmitted ray
             reflectedRay.parentIndex = parentIndex;
-            //reflectedRay.attenuation = rays[currentRayIndex].attenuation * material.metallic;
-            //reflectedRay.globalTransmission = vec3(0.0f);
+            reflectedRay.attenuation = rays[currentRayIndex].attenuation * material.metallic;
+            reflectedRay.globalTransmission = vec3(0.0f);
             reflectedRay.globalReflectivity = vec3(material.metallic);
 
             // Add ray for processing
@@ -398,7 +397,7 @@ vec3 TraceRay() {
                 transmittedRay.parentIndex = parentIndex;
                 transmittedRay.attenuation = rays[currentRayIndex].attenuation * material.transmittance.rgb;
                 transmittedRay.globalTransmission = material.transmittance.rgb;
-                //transmittedRay.globalReflectivity = vec3(0.0f);
+                transmittedRay.globalReflectivity = vec3(0.0f);
 
                 // Add ray for processing
                 rays[rayCount] = transmittedRay;
