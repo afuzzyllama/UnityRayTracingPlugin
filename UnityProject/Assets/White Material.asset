@@ -10,18 +10,18 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9b8fecf8e6e8a924cafb992dd52e0f92, type: 3}
-  m_Name: Test Material
+  m_Name: White Material
   m_EditorClassIdentifier: 
   albedoTexture: {fileID: 0}
-  albedo: {r: 0, g: 0, b: 0, a: 0}
+  albedo: {r: 1, g: 1, b: 1, a: 0}
   emissionTexture: {fileID: 0}
   emission: {r: 0, g: 0, b: 0, a: 0}
   normalTexture: {fileID: 0}
   metallicTexture: {fileID: 0}
   metallic: 0
   roughnessTexture: {fileID: 0}
-  roughness: 0
+  roughness: 1
   ambientOcclusionTexture: {fileID: 0}
-  indexOfRefraction: 1.52
-  transmittance: {r: 1, g: 1, b: 1, a: 0}
-  InstanceId: 14846
+  indexOfRefraction: 1.0003
+  transmittance: {r: 0, g: 0, b: 0, a: 0}
+  InstanceId: 14838

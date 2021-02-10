@@ -43,7 +43,7 @@
 #define LOCATION_PRIMARY_RAY    0
 #define LOCATION_SHADOW_RAY     1
 
-#define RAYTRACE_MAX_RECURSION 5
+#define RAYTRACE_MAX_RECURSION 10
 
 #ifdef __cplusplus
 
@@ -63,13 +63,29 @@
 
 struct ShaderRayPayload {
     align16 vec4  albedo;
-    align4  float distance;
+    align16 vec4  emission;
+    align4  float metallic;
+    align4  float roughness;
+    align4  float ambientOcclusion;
+    align4  float indexOfRefraction;
+
     align16 vec3  normal;
+    align4  float distance;
+#ifdef __cplusplus
+    align4 uint32_t materialIndex;
+#else
+    align4 uint     materialIndex;
+#endif
 };
 
 struct ShaderShadowRayPayload {
-    align16 vec4 color;
+    align16 vec4 albedo;
     align4 float distance;
+#ifdef __cplusplus
+    align4 uint32_t materialIndex;
+#else
+    align4 uint     materialIndex;
+#endif
 };
 
 // Ability to build tri face in hit shader
@@ -93,6 +109,7 @@ struct ShaderVertexAttributeData {
 };
 
 struct ShaderInstanceData {
+    align64 mat4        objectToWorldNormal;
 #ifdef __cplusplus
     align4  uint32_t    materialIndex;    // This is the mapping done during descriptor update
 #else
@@ -103,7 +120,12 @@ struct ShaderInstanceData {
 
 // packed std140
 struct ShaderSceneData {
-    align16 vec4 ambient;
+    align16 vec4        ambient;
+#ifdef __cplusplus
+    align4  uint32_t    lightCount;
+#else
+    align4  uint        lightCount;
+#endif
 };
 
 #define SHADER_LIGHTTYPE_NONE        -1
@@ -115,8 +137,10 @@ struct ShaderSceneData {
 // packed std140
 struct ShaderLightingData {
 #ifdef __cplusplus
+    align4  int32_t lightInstanceId;
     align4  int32_t type;
 #else
+    align4  int     lightInstanceId;
     align4  int     type;
 #endif
     align16 vec3     position;
@@ -131,11 +155,13 @@ struct ShaderLightingData {
 // packed std140
 struct ShaderCameraData {
     // Camera
-    align16 vec4 camPos;
-    align16 vec4 camDir;
-    align16 vec4 camUp;
-    align16 vec4 camSide;
-    align16 vec4 camNearFarFov;
+    align16 vec4  position;
+    align16 vec4  direction;
+    align16 vec4  up;
+    align16 vec4  right;
+    align4  float nearClipPlane;
+    align4  float farClipPlane;
+    align4  float fieldOfView;
 };
 
 // packed std140
@@ -145,6 +171,7 @@ struct ShaderMaterialData {
     align4  float   metallic;
     align4  float   roughness;
     align4  float   indexOfRefraction;
+    align16 vec4    transmittance;
 #ifdef __cplusplus
     align4  int32_t albedoTexture;
     align4  int32_t emissionTexture;

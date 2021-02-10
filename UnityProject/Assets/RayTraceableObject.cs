@@ -7,6 +7,7 @@ using UnityEngine;
 class RayTraceableObject : MonoBehaviour
 {
     [ReadOnly] public int InstanceId;
+    [ReadOnly] public int MaterialInstanceId;
 
     public RayTracerMaterial RayTracerMaterial;
 
@@ -27,7 +28,12 @@ class RayTraceableObject : MonoBehaviour
     private bool _meshInstanceRegisteredWithRayTracer = false;
     private ValueMonitor _monitor = new ValueMonitor();
 
-    private void Awake()
+    private void OnEnable()
+    {
+        Initialize();
+    }
+
+    private void Initialize()
     {
         InstanceId = GetInstanceID();
         _monitor.AddProperty(transform, transform.GetType(), "localToWorldMatrix", transform.localToWorldMatrix);
@@ -86,12 +92,12 @@ class RayTraceableObject : MonoBehaviour
             return;
         }
 
-        var materialInstanceId = RayTracerMaterial == null ? -1 : RayTracerMaterial.InstanceId;
+        MaterialInstanceId = RayTracerMaterial == null ? -1 : RayTracerMaterial.InstanceId;
 
         // Only update tlas instance if the transform has changed
         var l2wMatrix = transform.localToWorldMatrix;
         var l2wMatrixHandle = GCHandle.Alloc(l2wMatrix, GCHandleType.Pinned);
-        PixelsForGlory.RayTracingPlugin.UpdateTlasInstance(InstanceId, materialInstanceId, l2wMatrixHandle.AddrOfPinnedObject());
+        PixelsForGlory.RayTracingPlugin.UpdateTlasInstance(InstanceId, MaterialInstanceId, l2wMatrixHandle.AddrOfPinnedObject());
         l2wMatrixHandle.Free();
     }
 

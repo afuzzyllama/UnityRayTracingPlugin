@@ -20,6 +20,7 @@ public class RayTracingEditorWindow : EditorWindow
         var stats = PixelsForGlory.RayTracingPlugin.GetRayTracerStatistics();
 
         GUILayout.Label("Statistics", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField($"Registered Lights: {stats.RegisteredLights}");
         EditorGUILayout.LabelField($"Registered Shared Meshes: {stats.RegisteredSharedMeshes}");
         EditorGUILayout.LabelField($"Registered Mesh Instances: {stats.RegisteredMeshInstances}");
         EditorGUILayout.LabelField($"Registered Materials: {stats.RegisteredMaterials}");

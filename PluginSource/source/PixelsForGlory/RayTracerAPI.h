@@ -24,7 +24,8 @@ namespace PixelsForGlory
         struct RayTracerStatistics
         {
             RayTracerStatistics()
-                :RegisteredSharedMeshes(0)
+                : RegisteredLights(0)
+                , RegisteredSharedMeshes(0)
                 , RegisteredMeshInstances(0)
                 , RegisteredMaterials(0)
                 , RegisteredTextures(0)
@@ -37,6 +38,7 @@ namespace PixelsForGlory
                 , CombinedImageSamplerCount(0)
             {}
 
+            uint32_t RegisteredLights;
             uint32_t RegisteredSharedMeshes;
             uint32_t RegisteredMeshInstances;
             uint32_t RegisteredMaterials;
@@ -130,7 +132,7 @@ namespace PixelsForGlory
         /// <param name="camUp"></param>
         /// <param name="camSide"></param>
         /// <param name="camNearFarFov"></param>
-        virtual void UpdateCamera(int cameraInstanceId, float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov) = 0;
+        virtual void UpdateCamera(int cameraInstanceId, float* camPos, float* camDir, float* camUp, float* camRight, float camNear, float camFar, float camFov) = 0;
 
         /// <summary>
         /// Update scene data 
@@ -150,6 +152,7 @@ namespace PixelsForGlory
         virtual AddResourceResult AddMaterial(int materialInstanceId,
                                               float albedo_r, float albedo_g, float albedo_b,
                                               float emission_r, float emission_g, float emission_b,
+                                              float transmittance_r, float transmittance_g, float transmittance_b,
                                               float metallic,
                                               float roughness,
                                               float indexOfRefraction,
@@ -163,6 +166,7 @@ namespace PixelsForGlory
         virtual void UpdateMaterial(int materialInstanceId,
                                     float albedo_r, float albedo_g, float albedo_b,
                                     float emission_r, float emission_g, float emission_b,
+                                    float transmittance_r, float transmittance_g, float transmittance_b,
                                     float metallic,
                                     float roughness,
                                     float indexOfRefraction,

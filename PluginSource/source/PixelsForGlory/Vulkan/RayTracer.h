@@ -185,7 +185,7 @@ namespace PixelsForGlory::Vulkan
         virtual void BuildTlas();
         virtual void Prepare();
         virtual void ResetPipeline();
-        virtual void UpdateCamera(int cameraInstanceId, float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov);
+        virtual void UpdateCamera(int cameraInstanceId, float* camPos, float* camDir, float* camUp, float* camRight, float camNear, float camFar, float camFov);
         virtual void UpdateSceneData(float* color);
         virtual AddResourceResult AddLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled);
         virtual void UpdateLight(int lightInstanceId, float x, float y, float z, float r, float g, float b, float bounceIntensity, float intensity, float range, float spotAngle, int type, bool enabled);
@@ -195,6 +195,7 @@ namespace PixelsForGlory::Vulkan
         virtual AddResourceResult AddMaterial(int materialInstanceId, 
                                               float albedo_r, float albedo_g, float albedo_b, 
                                               float emission_r, float emission_g, float emission_b, 
+                                              float transmittance_r, float transmittance_g, float transmittance_b,
                                               float metallic, 
                                               float roughness, 
                                               float indexOfRefraction, 
@@ -209,6 +210,7 @@ namespace PixelsForGlory::Vulkan
         virtual void UpdateMaterial(int materialInstanceId,
                                     float albedo_r, float albedo_g, float albedo_b,
                                     float emission_r, float emission_g, float emission_b,
+                                    float transmittance_r, float transmittance_g, float transmittance_b,
                                     float metallic,
                                     float roughness,
                                     float indexOfRefraction,

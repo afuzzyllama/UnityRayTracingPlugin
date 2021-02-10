@@ -890,6 +890,18 @@ namespace PixelsForGlory::Vulkan
                 {
                     instanceData->materialIndex = materialInstanceIdToShaderIndex[instance.materialInstanceId];
                 }
+
+                // Calculate objectToWorldNormal
+                // https://www.scratchapixel.com/lessons/mathematics-physics-for-computer-graphics/geometry/transforming-normals
+                mat4 objectToWorldNormal = {
+                    t[0][0], t[0][1], t[0][2], 0.0f,
+                    t[1][0], t[1][1], t[1][2], 0.0f,
+                    t[2][0], t[2][1], t[2][2], 0.0f,
+                       0.0f,    0.0f,    0.0f, 1.0f
+                };
+
+                instanceData->objectToWorldNormal = glm::transpose(glm::inverse(objectToWorldNormal));
+                
                 instance.instanceData.Unmap();
 
                 // Consumed current index, advance
@@ -947,6 +959,31 @@ namespace PixelsForGlory::Vulkan
                 //PFG_EDITORLOG(std::to_string(t[2][0]) + ", " + std::to_string(t[2][1]) + ", " + std::to_string(t[2][2]) + ", " + std::to_string(t[2][3]));
 
                 instances[instanceAccelerationStructuresIndex].transform = transformMatrix;
+
+                // Map materials here, but seems like not the greatest place to do so?
+                auto instanceData = reinterpret_cast<ShaderInstanceData*>(instance.instanceData.Map());
+                if (instance.materialInstanceId == -1)
+                {
+                    instanceData->materialIndex = 0;
+                }
+                else
+                {
+                    instanceData->materialIndex = materialInstanceIdToShaderIndex[instance.materialInstanceId];
+                }
+
+                // Calculate objectToWorldNormal
+                // https://www.scratchapixel.com/lessons/mathematics-physics-for-computer-graphics/geometry/transforming-normals
+                mat4 objectToWorldNormal = {
+                    t[0][0], t[0][1], t[0][2], 0.0f,
+                    t[1][0], t[1][1], t[1][2], 0.0f,
+                    t[2][0], t[2][1], t[2][2], 0.0f,
+                       0.0f,    0.0f,    0.0f, 1.0f
+                };
+
+                instanceData->objectToWorldNormal = glm::transpose(glm::inverse(objectToWorldNormal));
+
+                instance.instanceData.Unmap();
+
                 
                 // Consumed current index, advance
                 ++instanceAccelerationStructuresIndex;
@@ -1077,13 +1114,13 @@ namespace PixelsForGlory::Vulkan
         accelerationStructureDeviceAddressInfo.accelerationStructure = tlas_.accelerationStructure;
         tlas_.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device_, &accelerationStructureDeviceAddressInfo);
 
-        if (update)
+        if (!update)
         {
-            PFG_EDITORLOG("Succesfully updated tlas");
+            PFG_EDITORLOG("Succesfully built tlas");
         }
         //else
         //{
-        //    PFG_EDITORLOG("Succesfully built tlas");
+        //    PFG_EDITORLOG("Succesfully updated tlas");
         //}
         
         
@@ -1185,7 +1222,6 @@ namespace PixelsForGlory::Vulkan
 
         meshInstancesAttributesBufferInfos_.resize(0);
         meshInstancesFacesBufferInfos_.resize(0);
-        lightsBufferInfos_.resize(0);
         textureImageInfos_.resize(0);
         materialBufferInfos_.resize(0);
 
@@ -1201,7 +1237,7 @@ namespace PixelsForGlory::Vulkan
         }
     }
 
-    void RayTracer::UpdateCamera(int cameraInstanceId, float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov)
+    void RayTracer::UpdateCamera(int cameraInstanceId, float* camPos, float* camDir, float* camUp, float* camRight, float camNear, float camFar, float camFov)
     {
         if (renderTargets_.find(cameraInstanceId) == renderTargets_.end())
         {
@@ -1212,25 +1248,25 @@ namespace PixelsForGlory::Vulkan
         auto& renderTarget = renderTargets_[cameraInstanceId];
 
         auto camera = reinterpret_cast<ShaderCameraData*>(renderTarget->cameraData.Map());
-        camera->camPos.x = camPos[0];
-        camera->camPos.y = camPos[1];
-        camera->camPos.z = camPos[2];
+        camera->position.x = camPos[0];
+        camera->position.y = camPos[1];
+        camera->position.z = camPos[2];
 
-        camera->camDir.x = camDir[0];
-        camera->camDir.y = camDir[1];
-        camera->camDir.z = camDir[2];
+        camera->direction.x = camDir[0];
+        camera->direction.y = camDir[1];
+        camera->direction.z = camDir[2];
 
-        camera->camUp.x = camUp[0];
-        camera->camUp.y = camUp[1];
-        camera->camUp.z = camUp[2];
+        camera->up.x = camUp[0];
+        camera->up.y = camUp[1];
+        camera->up.z = camUp[2];
 
-        camera->camSide.x = camSide[0];
-        camera->camSide.y = camSide[1];
-        camera->camSide.z = camSide[2];
+        camera->right.x = camRight[0];
+        camera->right.y = camRight[1];
+        camera->right.z = camRight[2];
 
-        camera->camNearFarFov.x = camNearFarFov[0];
-        camera->camNearFarFov.y = camNearFarFov[1];
-        camera->camNearFarFov.z = camNearFarFov[2];
+        camera->nearClipPlane = camNear;
+        camera->farClipPlane = camFar;
+        camera->fieldOfView = camFov;
 
         renderTarget->cameraData.Unmap();
         
@@ -1255,7 +1291,10 @@ namespace PixelsForGlory::Vulkan
         scene->ambient.g = color[1];
         scene->ambient.b = color[2];
         scene->ambient.a = color[3];
-
+        
+        // While we're here, update this for good measure :D
+        scene->lightCount = static_cast<uint32_t>(lightsPool_.in_use_size());
+        
         sceneData_.Unmap();
     }
 
@@ -1279,7 +1318,7 @@ namespace PixelsForGlory::Vulkan
             sizeof(ShaderLightingData),
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
             Vulkan::Buffer::kDefaultMemoryPropertyFlags);
-
+        
         UpdateLight(lightInstanceId, x, y, z, r, g, b, bounceIntensity, intensity, range, spotAngle, type, enabled);
         PFG_EDITORLOG("Added light (lightInstanceId: " + std::to_string(lightInstanceId) + ")");
 
@@ -1310,7 +1349,7 @@ namespace PixelsForGlory::Vulkan
         case SHADER_LIGHTTYPE_POINT:
             light->type = SHADER_LIGHTTYPE_POINT;
             break;
-        
+
         case SHADER_LIGHTTYPE_SPOT:
             light->type = SHADER_LIGHTTYPE_SPOT;
             break;
@@ -1416,6 +1455,7 @@ namespace PixelsForGlory::Vulkan
     RayTracerAPI::AddResourceResult RayTracer::AddMaterial(int materialInstanceId,
                                                            float albedo_r, float albedo_g, float albedo_b,
                                                            float emission_r, float emission_g, float emission_b,
+                                                           float transmittance_r, float transmittance_g, float transmittance_b,
                                                            float metallic,
                                                            float roughness,
                                                            float indexOfRefractionInstanceId,
@@ -1448,6 +1488,7 @@ namespace PixelsForGlory::Vulkan
         UpdateMaterial(materialInstanceId, 
                        albedo_r, albedo_g, albedo_b, 
                        emission_r, emission_g, emission_b, 
+                       transmittance_r, transmittance_g, transmittance_b,
                        metallic, 
                        roughness, 
                        indexOfRefractionInstanceId,
@@ -1466,6 +1507,7 @@ namespace PixelsForGlory::Vulkan
     void RayTracer::UpdateMaterial(int materialInstanceId,
                                    float albedo_r, float albedo_g, float albedo_b,
                                    float emission_r, float emission_g, float emission_b,
+                                   float transmittance_r, float transmittance_g, float transmittance_b,
                                    float metallic,
                                    float roughness,
                                    float indexOfRefraction,
@@ -1480,6 +1522,7 @@ namespace PixelsForGlory::Vulkan
 
         material->albedo = vec4(albedo_r, albedo_g, albedo_b, 1.0f);
         material->emission = vec4(emission_r, emission_g, emission_b, 1.0f);
+        material->transmittance = vec4(transmittance_r, transmittance_g, transmittance_b, 1.0f);
         material->metallic = metallic;
         material->roughness = roughness;
         material->indexOfRefraction = indexOfRefraction;
@@ -1586,6 +1629,7 @@ namespace PixelsForGlory::Vulkan
     {
         RayTracerAPI::RayTracerStatistics currentStats;
 
+        currentStats.RegisteredLights = static_cast<uint32_t>(lightsPool_.in_use_size());
         currentStats.RegisteredSharedMeshes = static_cast<uint32_t>(sharedMeshesPool_.in_use_size());
         currentStats.RegisteredMeshInstances = static_cast<uint32_t>(meshInstancePool_.in_use_size());
         currentStats.RegisteredMaterials = static_cast<uint32_t>(materialPool_.in_use_size());
@@ -2349,7 +2393,7 @@ namespace PixelsForGlory::Vulkan
         descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         descriptorPoolCreateInfo.pNext = nullptr;
         descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT; // This allows vkFreeDescriptorSets to be called
-        descriptorPoolCreateInfo.maxSets = DESCRIPTOR_SET_SIZE * 10; // Support up to 5 cameras?
+        descriptorPoolCreateInfo.maxSets = DESCRIPTOR_SET_SIZE * 100; 
         descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         descriptorPoolCreateInfo.pPoolSizes = poolSizes.data();
     

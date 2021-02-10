@@ -24,7 +24,12 @@ class RayTracableMeshFilter : MonoBehaviour
 
     private ValueMonitor _monitor = new ValueMonitor();
 
-    private void Awake()
+    private void OnEnable()
+    {
+        Initialize();
+    }
+
+    private void Initialize()
     {
         SharedMeshInstanceId = _meshFilter.sharedMesh.GetInstanceID();
         AddMeshData();

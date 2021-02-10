@@ -17,10 +17,7 @@ void main() {
     // The hitAttributeEXT (i.e. the barycentric coordinates) as provided by the built-in triangle-ray intersection test. 
     const vec3 barycentrics = vec3(1.0f - HitAttribs.x - HitAttribs.y, HitAttribs.x, HitAttribs.y);
 
-    // // Get the material associated with this hit
-    // const uint matID = MatIDsArray[nonuniformEXT(gl_InstanceCustomIndexEXT)].MatIDs[gl_PrimitiveID];
-    // const MaterialParam mat = MaterialParams[matID];
-
+    // Get data associated with this hit
     ShaderFaceData face = FacesArray[nonuniformEXT(gl_InstanceCustomIndexEXT)].Faces[gl_PrimitiveID];
 
     ShaderVertexAttributeData v0 = VertexAttributesArray[nonuniformEXT(gl_InstanceCustomIndexEXT)].VertexAttributes[face.index0];
@@ -34,7 +31,7 @@ void main() {
     const vec2 uv = BaryLerp(v0.uv.xy, v1.uv.xy, v2.uv.xy, barycentrics);
 
     // Get the face normal
-    vec3 normal = normalize(BaryLerp(v0.normal.xyz, v1.normal.xyz, v2.normal.xyz, barycentrics));
+    vec3 normal = (instance.objectToWorldNormal * vec4(normalize(BaryLerp(v0.normal.xyz, v1.normal.xyz, v2.normal.xyz, barycentrics)), 0.0f)).xyz;
     // if(mat.normalIndex != -1)
     // {
     //     // Adapted from
@@ -57,7 +54,7 @@ void main() {
     // }
     
     // // If we have a roughness map, use it. Otherwise take from material
-    // vec3 roughness = vec3(0.0f);
+    float roughness = material.roughness;
     // if(mat.roughIndex != -1)
     // {
     //     roughness = textureLod(TexturesArray[nonuniformEXT(mat.roughIndex)], uv, 0.0f).rgb;
@@ -68,7 +65,7 @@ void main() {
     // }
 
     // // Take the albedo value from the material 
-    // vec3 texel = mat.albedo.rgb;
+    vec4 albedo = material.albedo;
     // if(mat.albedoIndex != -1)
     // {
     //     // Add texture contribution if available 
@@ -76,7 +73,9 @@ void main() {
     // }
     // texel += mat.emission.rgb;
 
-    // float metallic = mat.metallic;
+    vec4 emission = material.emission;
+
+    float metallic = material.metallic;
     // if(mat.reflIndex != -1)
     // {
     //     // If the have an metallic map, get value here
@@ -85,6 +84,7 @@ void main() {
     // }
 
 
+    float ambientOcclusion = 1.0f;
     // vec3 ao = vec3(1.0f);
     // if(mat.aoIndex != -1)
     // {
@@ -93,13 +93,15 @@ void main() {
     // }
 
     // Return payload to gen shader
-    PrimaryRay.albedo = material.albedo;
-    // PrimaryRay.albedo = vec4(texel, 0.0f);
+    PrimaryRay.albedo               = albedo;
+    PrimaryRay.emission             = emission;
+    PrimaryRay.metallic             = metallic;
+    PrimaryRay.roughness            = roughness;
+    PrimaryRay.indexOfRefraction    = material.indexOfRefraction;
+    PrimaryRay.ambientOcclusion     = ambientOcclusion;
+    PrimaryRay.materialIndex        = instance.materialIndex;
+    
     PrimaryRay.normal = normal;
-    // PrimaryRay.roughness = vec4(roughness, 0.0f);
-    // PrimaryRay.metallic = metallic;
-    // PrimaryRay.ao = vec4(ao, 0.0f);
     PrimaryRay.distance = gl_HitTEXT;
-    // PrimaryRay.matId = matID;
 }
 

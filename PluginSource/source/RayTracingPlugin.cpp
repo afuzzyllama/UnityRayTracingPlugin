@@ -171,11 +171,11 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ResetPipeline()
     s_CurrentAPI->ResetPipeline();
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateCamera(int cameraInstanceId, float* camPos, float* camDir, float* camUp, float* camSide, float* camNearFarFov)
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateCamera(int cameraInstanceId, float* camPos, float* camDir, float* camUp, float* camRight, float camNear, float camFar, float camFov)
 {
     PLUGIN_CHECK();
 
-    s_CurrentAPI->UpdateCamera(cameraInstanceId, camPos, camDir, camUp, camSide, camNearFarFov);
+    s_CurrentAPI->UpdateCamera(cameraInstanceId, camPos, camDir, camUp, camRight, camNear, camFar, camFov);
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateSceneData(float* color)
@@ -224,6 +224,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RemoveTexture(int tex
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddMaterial(int materialInstanceId,
                                                                       float albedo_r, float albedo_g, float albedo_b,
                                                                       float emission_r, float emission_g, float emission_b,
+                                                                      float transmittance_r, float transmittance_g, float transmittance_b,
                                                                       float metallic,
                                                                       float roughness,
                                                                       float indexOfRefraction,
@@ -239,6 +240,7 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddMaterial(int materi
     return (int)s_CurrentAPI->AddMaterial(materialInstanceId,
                                           albedo_r, albedo_g, albedo_b,
                                           emission_r, emission_g, emission_b,
+                                          transmittance_r, transmittance_g, transmittance_b,
                                           metallic,
                                           roughness,
                                           indexOfRefraction,
@@ -253,6 +255,7 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddMaterial(int materi
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateMaterial(int materialInstanceId,
                                                                           float albedo_r, float albedo_g, float albedo_b,
                                                                           float emission_r, float emission_g, float emission_b,
+                                                                          float transmittance_r, float transmittance_g, float transmittance_b,
                                                                           float metallic,
                                                                           float roughness,
                                                                           float indexOfRefraction,
@@ -268,6 +271,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateMaterial(int ma
     s_CurrentAPI->UpdateMaterial(materialInstanceId,
                                  albedo_r, albedo_g, albedo_b,
                                  emission_r, emission_g, emission_b,
+                                 transmittance_r, transmittance_g, transmittance_b,
                                  metallic,
                                  roughness,
                                  indexOfRefraction,

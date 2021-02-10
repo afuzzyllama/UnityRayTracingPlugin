@@ -35,7 +35,7 @@ namespace PixelsForGlory
         public static extern void ResetPipeline();
         
         [DllImport("RayTracingPlugin")]
-        public static extern void UpdateCamera(int cameraInstanceId, IntPtr camPos, IntPtr camDir, IntPtr camUp, IntPtr camSide, IntPtr camNearFarFov);
+        public static extern void UpdateCamera(int cameraInstanceId, IntPtr camPos, IntPtr camDir, IntPtr camUp, IntPtr camSide, float camNear, float camFar, float camFov);
 
         [DllImport("RayTracingPlugin")]
         public static extern void UpdateSceneData(IntPtr color);
@@ -59,6 +59,7 @@ namespace PixelsForGlory
         public static extern int AddMaterial(int materialInstanceId,
                                              float albedo_r, float albedo_g, float albedo_b,
                                              float emission_r, float emission_g, float emission_b,
+                                             float transmittance_r, float transmittance_g, float transmittance_b,
                                              float metallic,
                                              float roughness,
                                              float indexOfRefraction,
@@ -72,6 +73,7 @@ namespace PixelsForGlory
         public static extern void UpdateMaterial(int materialInstanceId,
                                                  float albedo_r, float albedo_g, float albedo_b,
                                                  float emission_r, float emission_g, float emission_b,
+                                                 float transmittance_r, float transmittance_g, float transmittance_b,
                                                  float metallic,
                                                  float roughness,
                                                  float indexOfRefraction,
@@ -88,6 +90,7 @@ namespace PixelsForGlory
         [StructLayout(LayoutKind.Sequential)]
         public struct RayTracerStatistics
         {
+            public uint RegisteredLights;
             public uint RegisteredSharedMeshes;
             public uint RegisteredMeshInstances;
             public uint RegisteredMaterials;

@@ -21,15 +21,22 @@ public class RayTracerMaterial : ScriptableObject
 
     public Texture2D ambientOcclusionTexture;
 
-    [Range(1.0f, float.MaxValue)] public float indexOfRefraction;
+    [Range(1.0003f, 5.0f)] public float indexOfRefraction;
+
+    public Color transmittance;
 
     [ReadOnly] public int InstanceId;
 
     private ValueMonitor _monitor = new ValueMonitor();
 
-    private void Awake()
+    private void OnEnable()
     {
-        InstanceId = GetInstanceID();
+        Initialize();
+    }
+
+    private void Initialize()
+    {
+         InstanceId = GetInstanceID();
         _monitor.AddField(this, typeof(RayTracerMaterial), "albedoTexture", albedoTexture == null ? -1 : albedoTexture.GetInstanceID());
         _monitor.AddField(this, typeof(RayTracerMaterial), "albedo", albedo);
         _monitor.AddField(this, typeof(RayTracerMaterial), "emissionTexture", emissionTexture == null ? -1 : emissionTexture.GetInstanceID());
@@ -41,10 +48,12 @@ public class RayTracerMaterial : ScriptableObject
         _monitor.AddField(this, typeof(RayTracerMaterial), "roughnessTexture", roughnessTexture == null ? -1 : roughnessTexture.GetInstanceID());
         _monitor.AddField(this, typeof(RayTracerMaterial), "ambientOcclusionTexture", ambientOcclusionTexture == null ? -1 : ambientOcclusionTexture.GetInstanceID());
         _monitor.AddField(this, typeof(RayTracerMaterial), "indexOfRefraction", indexOfRefraction);
+        _monitor.AddField(this, typeof(RayTracerMaterial), "transmittance", transmittance);
 
         PixelsForGlory.RayTracingPlugin.AddMaterial(InstanceId,
                                                     albedo.r, albedo.g, albedo.b,
                                                     emission.r, emission.g, emission.b,
+                                                    transmittance.r, transmittance.g, transmittance.b,
                                                     metallic,
                                                     roughness,
                                                     indexOfRefraction,
@@ -72,6 +81,7 @@ public class RayTracerMaterial : ScriptableObject
         PixelsForGlory.RayTracingPlugin.UpdateMaterial(InstanceId,
                                                        albedo.r, albedo.g, albedo.b,
                                                        emission.r, emission.g, emission.b,
+                                                       transmittance.r, transmittance.g, transmittance.b,
                                                        metallic,
                                                        roughness,
                                                        indexOfRefraction,
