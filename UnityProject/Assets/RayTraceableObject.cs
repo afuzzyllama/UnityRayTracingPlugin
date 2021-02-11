@@ -3,7 +3,7 @@
 using UnityEngine;
 
 [ExecuteInEditMode]
-[RequireComponent(typeof(RayTracableMeshFilter))]
+[RequireComponent(typeof(RayTraceableMeshFilter))]
 class RayTraceableObject : MonoBehaviour
 {
     [ReadOnly] public int InstanceId;
@@ -11,14 +11,14 @@ class RayTraceableObject : MonoBehaviour
 
     public RayTracerMaterial RayTracerMaterial;
 
-    private RayTracableMeshFilter _rayTracableMeshFilterRef;
-    private RayTracableMeshFilter _rayTracableMeshFilter
+    private RayTraceableMeshFilter _rayTracableMeshFilterRef;
+    private RayTraceableMeshFilter _rayTracableMeshFilter
     {
         get
         {
             if (_rayTracableMeshFilterRef == null)
             {
-                _rayTracableMeshFilterRef = GetComponent<RayTracableMeshFilter>();
+                _rayTracableMeshFilterRef = GetComponent<RayTraceableMeshFilter>();
             }
 
             return _rayTracableMeshFilterRef;
