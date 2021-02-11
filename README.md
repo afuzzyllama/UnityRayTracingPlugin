@@ -6,6 +6,7 @@ Proof of concept native plugin for Unity3d that replaces the renderer with a har
 ## Usage
 - Build plugin
 - In Unity
+  - Set the Graphics API to Vulkan under `Project Settings -> Player` 
   - Add `Ray Traceable Light` to any light in the scene to have the plugin register it for lighting
   - Add `Ray Traceable Object` to any object in the scene to have the plugin register it for rendering.  Must have at least a valid Mesh assigned in the `MeshFilter`
   - Use `Ray Tracer Material` which uses a PBR model to shade objects
