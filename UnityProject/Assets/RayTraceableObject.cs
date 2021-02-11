@@ -37,6 +37,7 @@ class RayTraceableObject : MonoBehaviour
     {
         InstanceId = GetInstanceID();
         _monitor.AddProperty(transform, transform.GetType(), "localToWorldMatrix", transform.localToWorldMatrix);
+        _monitor.AddProperty(transform, transform.GetType(), "worldToLocalMatrix", transform.worldToLocalMatrix);
     }
 
     private void Update()
@@ -66,7 +67,9 @@ class RayTraceableObject : MonoBehaviour
     {
         
         var l2wMatrix = transform.localToWorldMatrix;
+        var w2lMatrix = transform.worldToLocalMatrix;
         var l2wMatrixHandle = GCHandle.Alloc(l2wMatrix, GCHandleType.Pinned);
+        var w2lMatrixHandle = GCHandle.Alloc(w2lMatrix, GCHandleType.Pinned);
 
         //Debug.Log("SendInstanceToPlugin");
         //Debug.Log($"{l2wMatrix[0,0]} {l2wMatrix[0,1]} {l2wMatrix[0,2]} {l2wMatrix[0,3]}");
@@ -75,14 +78,16 @@ class RayTraceableObject : MonoBehaviour
         //Debug.Log($"{l2wMatrix[3,0]} {l2wMatrix[3,1]} {l2wMatrix[3,2]} {l2wMatrix[3,3]}");
         //Debug.Log("--------------------");
 
-        var materialInstanceId = RayTracerMaterial == null ? -1 : RayTracerMaterial.InstanceId;
+        MaterialInstanceId = RayTracerMaterial == null ? -1 : RayTracerMaterial.InstanceId;
 
         _meshInstanceRegisteredWithRayTracer = (PixelsForGlory.RayTracingPlugin.AddTlasInstance(InstanceId, 
                                                                                                 _rayTracableMeshFilter.SharedMeshInstanceId,
-                                                                                                materialInstanceId, 
-                                                                                                l2wMatrixHandle.AddrOfPinnedObject()) > 0);
+                                                                                                MaterialInstanceId, 
+                                                                                                l2wMatrixHandle.AddrOfPinnedObject(),
+                                                                                                w2lMatrixHandle.AddrOfPinnedObject()) > 0);
 
         l2wMatrixHandle.Free();
+        w2lMatrixHandle.Free();
     }
 
     private void UpdateInstance()
@@ -96,9 +101,21 @@ class RayTraceableObject : MonoBehaviour
 
         // Only update tlas instance if the transform has changed
         var l2wMatrix = transform.localToWorldMatrix;
+        var w2lMatrix = transform.worldToLocalMatrix;
         var l2wMatrixHandle = GCHandle.Alloc(l2wMatrix, GCHandleType.Pinned);
-        PixelsForGlory.RayTracingPlugin.UpdateTlasInstance(InstanceId, MaterialInstanceId, l2wMatrixHandle.AddrOfPinnedObject());
+        var w2lMatrixHandle = GCHandle.Alloc(w2lMatrix, GCHandleType.Pinned);
+
+        PixelsForGlory.RayTracingPlugin.UpdateTlasInstance(InstanceId,
+                                                           MaterialInstanceId,
+                                                           l2wMatrixHandle.AddrOfPinnedObject(),
+                                                           w2lMatrixHandle.AddrOfPinnedObject());
+
+
+
+
+
         l2wMatrixHandle.Free();
+        w2lMatrixHandle.Free();
     }
 
     private void RemoveInstanceFromPlugin()

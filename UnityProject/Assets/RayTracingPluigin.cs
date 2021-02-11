@@ -17,10 +17,10 @@ namespace PixelsForGlory
         public static extern int AddSharedMesh(int sharedMeshInstanceId, IntPtr vertices, IntPtr normals, IntPtr tangets, IntPtr uvs, int vertexCount, IntPtr indices, int indexCount);
 
         [DllImport("RayTracingPlugin")]
-        public static extern int AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, int materialInstanceId, IntPtr l2wMatrix);
+        public static extern int AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, int materialInstanceId, IntPtr l2wMatrix, IntPtr w2lMatrix);
 
         [DllImport("RayTracingPlugin")]
-        public static extern void UpdateTlasInstance(int gameObjectInstanceId, int materialInstanceId, IntPtr l2wMatrix);
+        public static extern void UpdateTlasInstance(int gameObjectInstanceId, int materialInstanceId, IntPtr l2wMatrix, IntPtr w2lMatrix);
 
         [DllImport("RayTracingPlugin")]
         public static extern void RemoveTlasInstance(int gameObjectInstanceId);

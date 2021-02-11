@@ -110,7 +110,8 @@ struct ShaderVertexAttributeData {
 };
 
 struct ShaderInstanceData {
-    align64 mat4        objectToWorldNormal;
+    align64 mat4        localToWorld;
+    align64 mat4        worldToLocal;
 #ifdef __cplusplus
     align4  uint32_t    materialIndex;    // This is the mapping done during descriptor update
 #else

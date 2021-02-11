@@ -99,9 +99,9 @@ namespace PixelsForGlory
         /// <param name="meshInstanceId"></param>
         /// <param name="sharedMeshInstanceId"></param>
         /// <param name="l2wMatrix"></param>
-        virtual AddResourceResult AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, int materialInstanceId, float* l2wMatrix) = 0;
+        virtual AddResourceResult AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, int materialInstanceId, float* l2wMatrix, float* w2lMatrix) = 0;
 
-        virtual void UpdateTlasInstance(int gameObjectInstanceId, int materialInstanceId, float* l2wMatrix) = 0;
+        virtual void UpdateTlasInstance(int gameObjectInstanceId, int materialInstanceId, float* l2wMatrix, float* w2lMatrix) = 0;
             
         /// <summary>
         /// Removes instance to be removed on next tlas build

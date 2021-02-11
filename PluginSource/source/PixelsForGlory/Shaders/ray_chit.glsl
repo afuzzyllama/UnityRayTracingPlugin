@@ -32,7 +32,7 @@ void main() {
     const vec2 uv = BaryLerp(v0.uv.xy, v1.uv.xy, v2.uv.xy, barycentrics);
 
     // Get the face normal
-    vec3 normal = (instance.objectToWorldNormal * vec4(normalize(BaryLerp(v0.normal.xyz, v1.normal.xyz, v2.normal.xyz, barycentrics)), 0.0f)).xyz;
+    vec3 normal = mat3(instance.worldToLocal) * normalize(BaryLerp(v0.normal.xyz, v1.normal.xyz, v2.normal.xyz, barycentrics));
     if(material.normalTextureSet == true)
     {
         // Adapted from

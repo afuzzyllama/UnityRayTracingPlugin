@@ -766,7 +766,7 @@ namespace PixelsForGlory::Vulkan
     
     }
 
-    RayTracerAPI::AddResourceResult RayTracer::AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, int materialInstanceId, float* l2wMatrix)
+    RayTracerAPI::AddResourceResult RayTracer::AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, int materialInstanceId, float* l2wMatrix, float* w2lMatrix)
     { 
         if (meshInstancePool_.find(gameObjectInstanceId) != meshInstancePool_.in_use_end())
         {
@@ -780,6 +780,7 @@ namespace PixelsForGlory::Vulkan
         instance.sharedMeshInstanceId = sharedMeshInstanceId;
         instance.materialInstanceId   = materialInstanceId;
         FloatArrayToMatrix(l2wMatrix, instance.localToWorld);
+        FloatArrayToMatrix(w2lMatrix, instance.worldToLocal);
 
 
         instance.instanceData.Create(
@@ -798,9 +799,10 @@ namespace PixelsForGlory::Vulkan
         return RayTracerAPI::AddResourceResult::Success;
     }
 
-    void RayTracer::UpdateTlasInstance(int gameObjectInstanceId, int materialInstanceId, float* l2wMatrix)
+    void RayTracer::UpdateTlasInstance(int gameObjectInstanceId, int materialInstanceId, float* l2wMatrix, float* w2lMatrix)
     {
         FloatArrayToMatrix(l2wMatrix, meshInstancePool_[gameObjectInstanceId].localToWorld);
+        FloatArrayToMatrix(w2lMatrix, meshInstancePool_[gameObjectInstanceId].worldToLocal);
         meshInstancePool_[gameObjectInstanceId].materialInstanceId = materialInstanceId;
         updateTlas_ = true;
     }
@@ -893,16 +895,8 @@ namespace PixelsForGlory::Vulkan
                     instanceData->materialIndex = materialInstanceIdToShaderIndex[instance.materialInstanceId];
                 }
 
-                // Calculate objectToWorldNormal
-                // https://www.scratchapixel.com/lessons/mathematics-physics-for-computer-graphics/geometry/transforming-normals
-                mat4 objectToWorldNormal = {
-                    t[0][0], t[0][1], t[0][2], 0.0f,
-                    t[1][0], t[1][1], t[1][2], 0.0f,
-                    t[2][0], t[2][1], t[2][2], 0.0f,
-                       0.0f,    0.0f,    0.0f, 1.0f
-                };
-
-                instanceData->objectToWorldNormal = glm::transpose(glm::inverse(objectToWorldNormal));
+                instanceData->localToWorld = instance.localToWorld;
+                instanceData->worldToLocal = instance.worldToLocal;
                 
                 instance.instanceData.Unmap();
 
@@ -973,16 +967,8 @@ namespace PixelsForGlory::Vulkan
                     instanceData->materialIndex = materialInstanceIdToShaderIndex[instance.materialInstanceId];
                 }
 
-                // Calculate objectToWorldNormal
-                // https://www.scratchapixel.com/lessons/mathematics-physics-for-computer-graphics/geometry/transforming-normals
-                mat4 objectToWorldNormal = {
-                    t[0][0], t[0][1], t[0][2], 0.0f,
-                    t[1][0], t[1][1], t[1][2], 0.0f,
-                    t[2][0], t[2][1], t[2][2], 0.0f,
-                       0.0f,    0.0f,    0.0f, 1.0f
-                };
-
-                instanceData->objectToWorldNormal = glm::transpose(glm::inverse(objectToWorldNormal));
+                instanceData->localToWorld = instance.localToWorld;
+                instanceData->worldToLocal = instance.worldToLocal;
 
                 instance.instanceData.Unmap();
 

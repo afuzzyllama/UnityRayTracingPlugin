@@ -125,6 +125,7 @@ namespace PixelsForGlory::Vulkan
         int32_t  sharedMeshInstanceId;
         int32_t  materialInstanceId;
         mat4     localToWorld;
+        mat4     worldToLocal;
 
         Vulkan::Buffer instanceData;
     };
@@ -179,8 +180,8 @@ namespace PixelsForGlory::Vulkan
         virtual int SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, void* textureHandle);
         virtual bool ProcessDeviceEvent(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces);
         virtual AddResourceResult AddSharedMesh(int sharedMeshInstanceId, float* verticesArray, float* normalsArray, float* tangentsArray, float* uvsArray, int vertexCount, int* indicesArray, int indexCount);
-        virtual AddResourceResult AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, int materialInstanceId, float* l2wMatrix);
-        virtual void UpdateTlasInstance(int gameObjectInstanceId, int materialInstanceId, float* l2wMatrix);
+        virtual AddResourceResult AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, int materialInstanceId, float* l2wMatrix, float* w2lMatrix);
+        virtual void UpdateTlasInstance(int gameObjectInstanceId, int materialInstanceId, float* l2wMatrix, float* w2lMatrix);
         virtual void RemoveTlasInstance(int gameObjectInstanceId);
         virtual void BuildTlas();
         virtual void Prepare();
