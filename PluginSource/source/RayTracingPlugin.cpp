@@ -150,13 +150,6 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RemoveTlasInstance(in
     s_CurrentAPI->RemoveTlasInstance(gameObjectInstanceId);
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API BuildTlas()
-{
-    PLUGIN_CHECK();
-
-    s_CurrentAPI->BuildTlas();
-}
-
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API Prepare()
 {
     PLUGIN_CHECK();

@@ -328,10 +328,6 @@ namespace PixelsForGlory::Vulkan
     {
         graphicsInterface_ = graphicsInterface;
         device_ = graphicsInterface_->Instance().device;
-
-        // Setup one off command pools
-        CreateCommandPool(graphicsQueueFamilyIndex_, graphicsCommandPool_);
-        CreateCommandPool(transferQueueFamilyIndex_, transferCommandPool_);  
     }
 
     void RayTracer::Shutdown()
@@ -340,18 +336,6 @@ namespace PixelsForGlory::Vulkan
         {
             vkDestroyDebugUtilsMessengerEXT(graphicsInterface_->Instance().instance, debugMessenger_, nullptr);
             debugMessenger_ = VK_NULL_HANDLE;
-        }
-
-        if (graphicsCommandPool_ != VK_NULL_HANDLE)
-        {
-            vkDestroyCommandPool(device_, graphicsCommandPool_, nullptr);
-            graphicsCommandPool_ = VK_NULL_HANDLE;
-        }
-
-        if (transferCommandPool_ != VK_NULL_HANDLE)
-        {
-            vkDestroyCommandPool(device_, transferCommandPool_, nullptr);
-            transferCommandPool_ = VK_NULL_HANDLE;
         }
 
         for (auto itr = renderTargets_.begin(); itr != renderTargets_.end(); ++itr)
@@ -813,308 +797,6 @@ namespace PixelsForGlory::Vulkan
 
         // If we added an instance, we need to rebuild the tlas
         rebuildTlas_ = true;
-    }
-
-    void RayTracer::BuildTlas() 
-    {
-        // If there is nothing to do, skip building the tlas
-        if (rebuildTlas_ == false && updateTlas_ == false)
-        {
-            return;
-        }
-
-        bool update = updateTlas_;
-        if (rebuildTlas_)
-        {
-            update = false;
-        }
-
-        if (meshInstancePool_.in_use_size() == 0)
-        {
-            // We have no instances, so there is nothing to build 
-            return;
-        }
-     
-        // TODO: this is copied from BuildDescriptorBufferInfos.... kinda not great way to do this?
-        uint32_t i = 1;
-        std::map<int, uint32_t> materialInstanceIdToShaderIndex;
-        for (auto itr = materialPool_.in_use_begin(); itr != materialPool_.in_use_end(); ++itr)
-        {
-            auto materialInstanceId = (*itr).first;
-            materialInstanceIdToShaderIndex.insert(std::make_pair(materialInstanceId, i));
-            ++i;
-        }
-
-        if (!update)
-        {
-            // Build instance buffer from scratch
-            std::vector<VkAccelerationStructureInstanceKHR> instanceAccelerationStructures;
-            instanceAccelerationStructures.resize(meshInstancePool_.in_use_size(), VkAccelerationStructureInstanceKHR{});
-
-            // Gather instances
-            uint32_t instanceAccelerationStructuresIndex = 0;
-            for (auto i = meshInstancePool_.in_use_begin(); i != meshInstancePool_.in_use_end(); ++i)
-            {
-                auto gameObjectInstanceId = (*i).first;
-
-                auto& instance = meshInstancePool_[gameObjectInstanceId];
-
-                const auto& t = instance.localToWorld;
-                VkTransformMatrixKHR transformMatrix = {
-                    t[0][0], t[0][1], t[0][2], t[0][3],
-                    t[1][0], t[1][1], t[1][2], t[1][3],
-                    t[2][0], t[2][1], t[2][2], t[2][3]
-                };
-
-                /*PFG_EDITORLOG("Instance transform matrix loop: ");
-                PFG_EDITORLOG(std::to_string(transformMatrix.matrix[0][0]) + ", " + std::to_string(transformMatrix.matrix[0][1]) + ", " + std::to_string(transformMatrix.matrix[0][2]) + ", " + std::to_string(transformMatrix.matrix[0][3]));
-                PFG_EDITORLOG(std::to_string(transformMatrix.matrix[1][0]) + ", " + std::to_string(transformMatrix.matrix[1][1]) + ", " + std::to_string(transformMatrix.matrix[1][2]) + ", " + std::to_string(transformMatrix.matrix[1][3]));
-                PFG_EDITORLOG(std::to_string(transformMatrix.matrix[2][0]) + ", " + std::to_string(transformMatrix.matrix[2][1]) + ", " + std::to_string(transformMatrix.matrix[2][2]) + ", " + std::to_string(transformMatrix.matrix[2][3]));*/
-
-                VkAccelerationStructureInstanceKHR& accelerationStructureInstance = instanceAccelerationStructures[instanceAccelerationStructuresIndex];
-                accelerationStructureInstance.transform = transformMatrix;
-                accelerationStructureInstance.instanceCustomIndex = instanceAccelerationStructuresIndex;
-                accelerationStructureInstance.mask = 0xFF;
-                accelerationStructureInstance.instanceShaderBindingTableRecordOffset = 0;
-                accelerationStructureInstance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-                accelerationStructureInstance.accelerationStructureReference = sharedMeshesPool_[instance.sharedMeshInstanceId]->blas.deviceAddress;
-
-                /*PFG_EDITORLOG("VkAccelerationStructureInstanceKHR.transform: ");
-                PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[0][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][3]));
-                PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[1][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[1][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[1][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[1][3]));
-                PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[2][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[2][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[2][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[2][3]));*/
-
-                // Map materials here, but seems like not the greatest place to do so?
-                auto instanceData = reinterpret_cast<ShaderInstanceData*>(instance.instanceData.Map());
-                if (instance.materialInstanceId == -1)
-                {
-                    instanceData->materialIndex = 0;
-                }
-                else
-                {
-                    instanceData->materialIndex = materialInstanceIdToShaderIndex[instance.materialInstanceId];
-                }
-
-                instanceData->localToWorld = instance.localToWorld;
-                instanceData->worldToLocal = instance.worldToLocal;
-                
-                instance.instanceData.Unmap();
-
-                // Consumed current index, advance
-                ++instanceAccelerationStructuresIndex;
-            }
-
-            // Destroy anytihng if created before
-            instancesAccelerationStructuresBuffer_.Destroy();
-
-            instancesAccelerationStructuresBuffer_.Create(
-                "instanceBuffer",
-                device_,
-                physicalDeviceMemoryProperties_,
-                instanceAccelerationStructures.size() * sizeof(VkAccelerationStructureInstanceKHR),
-                VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                Vulkan::Buffer::kDefaultMemoryPropertyFlags);
-            instancesAccelerationStructuresBuffer_.UploadData(instanceAccelerationStructures.data(), instancesAccelerationStructuresBuffer_.GetSize());
-
-            /*auto instances = reinterpret_cast<VkAccelerationStructureInstanceKHR*>(instancesAccelerationStructuresBuffer_.Map());
-            for (int i = 0; i < meshInstancePool_.in_use_size(); ++i)
-            {
-
-                PFG_EDITORLOG("Instance transform matrix after upload: ");
-                PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[0][0]) + ", " + std::to_string(instances[i].transform.matrix[0][1]) + ", " + std::to_string(instances[i].transform.matrix[0][2]) + ", " + std::to_string(instances[i].transform.matrix[0][3]));
-                PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[1][0]) + ", " + std::to_string(instances[i].transform.matrix[1][1]) + ", " + std::to_string(instances[i].transform.matrix[1][2]) + ", " + std::to_string(instances[i].transform.matrix[1][3]));
-                PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[2][0]) + ", " + std::to_string(instances[i].transform.matrix[2][1]) + ", " + std::to_string(instances[i].transform.matrix[2][2]) + ", " + std::to_string(instances[i].transform.matrix[2][3]));
-
-            }
-            instancesAccelerationStructuresBuffer_.Unmap();*/
-        }
-        else
-        {
-            // Update transforms in buffer, should be the exact same layout
-
-            auto instances = reinterpret_cast<VkAccelerationStructureInstanceKHR*>(instancesAccelerationStructuresBuffer_.Map());
-
-            // Gather instances
-            uint32_t instanceAccelerationStructuresIndex = 0;
-            for (auto i = meshInstancePool_.in_use_begin(); i != meshInstancePool_.in_use_end(); ++i)
-            {
-                auto gameObjectInstanceId = (*i).first;
-
-                auto& instance = meshInstancePool_[gameObjectInstanceId];
-
-                const auto& t = instance.localToWorld;
-                VkTransformMatrixKHR transformMatrix = {
-                    t[0][0], t[0][1], t[0][2], t[0][3],
-                    t[1][0], t[1][1], t[1][2], t[1][3],
-                    t[2][0], t[2][1], t[2][2], t[2][3]
-                };
-
-                //PFG_EDITORLOG("Instance transform matrix: ");
-                //PFG_EDITORLOG(std::to_string(t[0][0]) + ", " + std::to_string(t[0][1]) + ", " + std::to_string(t[0][2]) + ", " + std::to_string(t[0][3]));
-                //PFG_EDITORLOG(std::to_string(t[1][0]) + ", " + std::to_string(t[1][1]) + ", " + std::to_string(t[1][2]) + ", " + std::to_string(t[1][3]));
-                //PFG_EDITORLOG(std::to_string(t[2][0]) + ", " + std::to_string(t[2][1]) + ", " + std::to_string(t[2][2]) + ", " + std::to_string(t[2][3]));
-
-                instances[instanceAccelerationStructuresIndex].transform = transformMatrix;
-
-                // Map materials here, but seems like not the greatest place to do so?
-                auto instanceData = reinterpret_cast<ShaderInstanceData*>(instance.instanceData.Map());
-                if (instance.materialInstanceId == -1)
-                {
-                    instanceData->materialIndex = 0;
-                }
-                else
-                {
-                    instanceData->materialIndex = materialInstanceIdToShaderIndex[instance.materialInstanceId];
-                }
-
-                instanceData->localToWorld = instance.localToWorld;
-                instanceData->worldToLocal = instance.worldToLocal;
-
-                instance.instanceData.Unmap();
-
-                
-                // Consumed current index, advance
-                ++instanceAccelerationStructuresIndex;
-            }
-            instancesAccelerationStructuresBuffer_.Unmap();
-        }
-
-        //auto instances = reinterpret_cast<VkAccelerationStructureInstanceKHR*>(instancesAccelerationStructuresBuffer_.Map());
-        //for (int i = 0; i < meshInstancePool_.in_use_size(); ++i)
-        //{
-        //    
-        //    PFG_EDITORLOG("Instance transform matrix: ");
-        //        PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[0][0]) + ", " + std::to_string(instances[i].transform.matrix[0][1]) + ", " + std::to_string(instances[i].transform.matrix[0][2]) + ", " + std::to_string(instances[i].transform.matrix[0][3]));
-        //        PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[1][0]) + ", " + std::to_string(instances[i].transform.matrix[1][1]) + ", " + std::to_string(instances[i].transform.matrix[1][2]) + ", " + std::to_string(instances[i].transform.matrix[1][3]));
-        //        PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[2][0]) + ", " + std::to_string(instances[i].transform.matrix[2][1]) + ", " + std::to_string(instances[i].transform.matrix[2][2]) + ", " + std::to_string(instances[i].transform.matrix[2][3]));
-        //        
-        //}
-        //instancesAccelerationStructuresBuffer_.Unmap();
-
-        // The top level acceleration structure contains (bottom level) instance as the input geometry
-        VkAccelerationStructureGeometryInstancesDataKHR accelerationStructureGeometryInstancesData = {};
-        accelerationStructureGeometryInstancesData.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
-        accelerationStructureGeometryInstancesData.arrayOfPointers = VK_FALSE;
-        accelerationStructureGeometryInstancesData.data.deviceAddress = instancesAccelerationStructuresBuffer_.GetBufferDeviceAddressConst().deviceAddress;
-
-        VkAccelerationStructureGeometryKHR accelerationStructureGeometry = {};
-        accelerationStructureGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
-        accelerationStructureGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
-        accelerationStructureGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
-        accelerationStructureGeometry.geometry.instances = accelerationStructureGeometryInstancesData;
-
-        // Get the size requirements for buffers involved in the acceleration structure build process
-        VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo = {};
-        accelerationStructureBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-        accelerationStructureBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-        accelerationStructureBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-        accelerationStructureBuildGeometryInfo.geometryCount = 1;
-        accelerationStructureBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
-
-        // Number of instances
-        uint32_t instancesCount = static_cast<uint32_t>(meshInstancePool_.in_use_size());
-
-        VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo = {};
-        accelerationStructureBuildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
-        vkGetAccelerationStructureBuildSizesKHR(
-            device_,
-            VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
-            &accelerationStructureBuildGeometryInfo,
-            &instancesCount,
-            &accelerationStructureBuildSizesInfo);
-
-        if (!update)
-        {
-            if (tlas_.accelerationStructure != VK_NULL_HANDLE)
-            {
-                vkDestroyAccelerationStructureKHR(device_, tlas_.accelerationStructure, nullptr);
-            }
-            tlas_.buffer.Destroy();
-            
-            // Create a buffer to hold the acceleration structure
-            tlas_.buffer.Create(
-                "tlas",
-                device_,
-                physicalDeviceMemoryProperties_,
-                accelerationStructureBuildSizesInfo.accelerationStructureSize,
-                VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR,
-                Vulkan::Buffer::kDefaultMemoryPropertyFlags);
-
-            // Create the acceleration structure
-            VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo = {};
-            accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
-            accelerationStructureCreateInfo.buffer = tlas_.buffer.GetBuffer();
-            accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
-            accelerationStructureCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-            VK_CHECK("vkCreateAccelerationStructureKHR", vkCreateAccelerationStructureKHR(device_, &accelerationStructureCreateInfo, nullptr, &tlas_.accelerationStructure));
-
-            assert(tlas_.accelerationStructure != VK_NULL_HANDLE);
-        }
-
-        // The actual build process starts here
-
-        // Create a scratch buffer as a temporary storage for the acceleration structure build
-        Vulkan::Buffer scratchBuffer;
-        scratchBuffer.Create(
-            "scratch",
-            device_,
-            physicalDeviceMemoryProperties_,
-            accelerationStructureBuildSizesInfo.buildScratchSize,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-        VkAccelerationStructureBuildGeometryInfoKHR accelerationBuildGeometryInfo = {};
-        accelerationBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-        accelerationBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-        accelerationBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
-        accelerationBuildGeometryInfo.mode = update ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-        accelerationBuildGeometryInfo.srcAccelerationStructure = update ? tlas_.accelerationStructure : VK_NULL_HANDLE;
-        accelerationBuildGeometryInfo.dstAccelerationStructure = tlas_.accelerationStructure;
-        accelerationBuildGeometryInfo.geometryCount = 1;
-        accelerationBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
-        accelerationBuildGeometryInfo.scratchData = scratchBuffer.GetBufferDeviceAddress();
-
-
-        VkAccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo;
-        accelerationStructureBuildRangeInfo.primitiveCount = static_cast<uint32_t>(meshInstancePool_.in_use_size());
-        accelerationStructureBuildRangeInfo.primitiveOffset = 0;
-        accelerationStructureBuildRangeInfo.firstVertex = 0;
-        accelerationStructureBuildRangeInfo.transformOffset = 0;
-
-        const VkAccelerationStructureBuildRangeInfoKHR* constAccelerationStructureBuildRangeInfo = &accelerationStructureBuildRangeInfo;
-        
-        // Build the acceleration structure on the device via a one-time command buffer submission
-        // Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
-        VkCommandBuffer commandBuffer;
-        CreateWorkerCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, graphicsCommandPool_, commandBuffer);
-        vkCmdBuildAccelerationStructuresKHR(
-            commandBuffer,
-            1,
-            &accelerationBuildGeometryInfo,
-            &constAccelerationStructureBuildRangeInfo);
-        SubmitWorkerCommandBuffer(commandBuffer, graphicsCommandPool_, graphicsQueue_);
-
-        scratchBuffer.Destroy();
-
-        // Get the top acceleration structure's handle, which will be used to setup it's descriptor
-        VkAccelerationStructureDeviceAddressInfoKHR accelerationStructureDeviceAddressInfo = {};
-        accelerationStructureDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
-        accelerationStructureDeviceAddressInfo.accelerationStructure = tlas_.accelerationStructure;
-        tlas_.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device_, &accelerationStructureDeviceAddressInfo);
-
-        if (!update)
-        {
-            PFG_EDITORLOG("Succesfully built tlas");
-        }
-        //else
-        //{
-        //    PFG_EDITORLOG("Succesfully updated tlas");
-        //}
-        
-        
-        // We did any pending work, reset flags
-        rebuildTlas_= false;
-        updateTlas_ = false;
     }
 
     void RayTracer::Prepare() 
@@ -1632,7 +1314,7 @@ namespace PixelsForGlory::Vulkan
             return;
         }
 
-        BuildTlas();
+        BuildTlas(recordingState.commandBuffer, recordingState.currentFrameNumber);
 
         if (tlas_.accelerationStructure == VK_NULL_HANDLE)
         {
@@ -1708,77 +1390,6 @@ namespace PixelsForGlory::Vulkan
 
 #pragma endregion RayTracerAPI
 
-    void RayTracer::CreateCommandPool(uint32_t queueFamilyIndex, VkCommandPool& outCommandPool)
-    {
-        VkCommandPoolCreateInfo commandPoolCreateInfo = {};
-        commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        commandPoolCreateInfo.queueFamilyIndex = queueFamilyIndex;
-        commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-
-        VK_CHECK("vkCreateCommandPool", vkCreateCommandPool(device_, &commandPoolCreateInfo, nullptr, &outCommandPool));
-    }
-
-    void RayTracer::CreateWorkerCommandBuffer(VkCommandBufferLevel level, VkCommandPool commandPool, VkCommandBuffer& outCommandBuffer)
-    {
-        //TODO : Can we just use a recording state from unity?
-        VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-        commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        commandBufferAllocateInfo.commandPool = commandPool;
-        commandBufferAllocateInfo.level = level;
-        commandBufferAllocateInfo.commandBufferCount = 1;
-
-        VK_CHECK("vkAllocateCommandBuffers", vkAllocateCommandBuffers(device_, &commandBufferAllocateInfo, &outCommandBuffer));
-    
-        // Start recording for the new command buffer
-        VkCommandBufferBeginInfo commandBufferBeginInfo = { };
-        commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        VK_CHECK("vkBeginCommandBuffer", vkBeginCommandBuffer(outCommandBuffer, &commandBufferBeginInfo));
-    }
-
-    void RayTracer::SubmitWorkerCommandBuffer(VkCommandBuffer commandBuffer, VkCommandPool commandPool, const VkQueue& queue)
-    {
-        VK_CHECK("vkEndCommandBuffer", vkEndCommandBuffer(commandBuffer));
-
-        VkSubmitInfo submitInfo = {};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffer;
-    
-        /*if (signalSemaphore)
-        {
-            submit_info.pSignalSemaphores = &signalSemaphore;
-            submit_info.signalSemaphoreCount = 1;
-        }*/
-    
-        // Create fence to ensure that the command buffer has finished executing
-        VkFenceCreateInfo fenceCreateInfo = { };
-        fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        fenceCreateInfo.flags = 0;
-    
-        VkFence fence;
-        VK_CHECK("vkCreateFence", vkCreateFence(device_, &fenceCreateInfo, nullptr, &fence));
-    
-        // Submit to the queue
-        VkResult result = vkQueueSubmit(queue, 1, &submitInfo, fence);
-        if (result == VK_ERROR_DEVICE_LOST)
-        {
-
-        }
-
-        VK_CHECK("vkQueueSubmit", result);
-    
-        // Wait for the fence to signal that command buffer has finished executing
-        const uint64_t DEFAULT_FENCE_TIMEOUT = 100000000000;
-        VK_CHECK("vkWaitForFences", vkWaitForFences(device_, 1, &fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT));
-    
-        vkDestroyFence(device_, fence, nullptr);
-
-        if (commandPool != VK_NULL_HANDLE)
-        {
-            vkFreeCommandBuffers(device_, commandPool, 1, &commandBuffer);
-        }
-    }
-
     void RayTracer::BuildBlas(int sharedMeshInstanceId)
     {
         // Create buffers for the bottom level geometry
@@ -1789,15 +1400,15 @@ namespace PixelsForGlory::Vulkan
             0.0f, 1.0f, 0.0f, 0.0f,
             0.0f, 0.0f, 1.0f, 0.0f };
         
-        Vulkan::Buffer transformBuffer;
-        transformBuffer.Create(
+        auto transformBuffer = std::make_unique<Vulkan::Buffer>();
+        transformBuffer->Create(
             "transformBuffer",
             device_, 
             physicalDeviceMemoryProperties_, 
             sizeof(VkTransformMatrixKHR),
             VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
             Vulkan::Buffer::kDefaultMemoryPropertyFlags);
-        transformBuffer.UploadData(&transformMatrix, sizeof(VkTransformMatrixKHR));
+        transformBuffer->UploadData(&transformMatrix, sizeof(VkTransformMatrixKHR));
 
         //auto identity = reinterpret_cast<VkTransformMatrixKHR*>(transformBuffer.Map());
         //PFG_EDITORLOG("Identity matrix: ");
@@ -1820,7 +1431,7 @@ namespace PixelsForGlory::Vulkan
         accelerationStructureGeometry.geometry.triangles.vertexStride = sizeof(vec3);
         accelerationStructureGeometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
         accelerationStructureGeometry.geometry.triangles.indexData = sharedMeshesPool_[sharedMeshInstanceId]->indexBuffer.GetBufferDeviceAddressConst();
-        accelerationStructureGeometry.geometry.triangles.transformData = transformBuffer.GetBufferDeviceAddressConst();
+        accelerationStructureGeometry.geometry.triangles.transformData = transformBuffer->GetBufferDeviceAddressConst();
         
         // Get the size requirements for buffers involved in the acceleration structure build process
         VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo = {};
@@ -1863,8 +1474,8 @@ namespace PixelsForGlory::Vulkan
 
         // The actual build process starts here
         // Create a scratch buffer as a temporary storage for the acceleration structure build
-        Vulkan::Buffer scratchBuffer;
-        scratchBuffer.Create(
+        auto scratchBuffer = std::make_unique<Vulkan::Buffer>();
+        scratchBuffer->Create(
             "scratch",
             device_, 
             physicalDeviceMemoryProperties_, 
@@ -1880,7 +1491,7 @@ namespace PixelsForGlory::Vulkan
         accelerationBuildGeometryInfo.dstAccelerationStructure = sharedMeshesPool_[sharedMeshInstanceId]->blas.accelerationStructure;
         accelerationBuildGeometryInfo.geometryCount = 1;
         accelerationBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
-        accelerationBuildGeometryInfo.scratchData = scratchBuffer.GetBufferDeviceAddress();
+        accelerationBuildGeometryInfo.scratchData = scratchBuffer->GetBufferDeviceAddress();
 
         VkAccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo = { };
         accelerationStructureBuildRangeInfo.primitiveCount = primitiveCount;
@@ -1889,28 +1500,386 @@ namespace PixelsForGlory::Vulkan
         accelerationStructureBuildRangeInfo.transformOffset = 0;
         std::vector<VkAccelerationStructureBuildRangeInfoKHR*> accelerationStructureBuildRangeInfos = { &accelerationStructureBuildRangeInfo };
 
-        // Build the acceleration structure on the device via a one-time command buffer submission.  We will NOT use the Unity command buffer in this case
-        // Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
-
-        VkCommandBuffer buildCommandBuffer;
-        CreateWorkerCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, graphicsCommandPool_, buildCommandBuffer);
-        vkCmdBuildAccelerationStructuresKHR(
-            buildCommandBuffer,
-            1,
-            &accelerationBuildGeometryInfo,
-            accelerationStructureBuildRangeInfos.data());
-        SubmitWorkerCommandBuffer(buildCommandBuffer, graphicsCommandPool_, graphicsQueue_);
-
-        transformBuffer.Destroy();
-        scratchBuffer.Destroy();
-
         // Get the bottom acceleration structure's handle, which will be used during the top level acceleration build
         VkAccelerationStructureDeviceAddressInfoKHR accelerationStructureDeviceAddressInfo{};
         accelerationStructureDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
         accelerationStructureDeviceAddressInfo.accelerationStructure = sharedMeshesPool_[sharedMeshInstanceId]->blas.accelerationStructure;
         sharedMeshesPool_[sharedMeshInstanceId]->blas.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device_, &accelerationStructureDeviceAddressInfo);
 
+        // Build the acceleration structure on the device
+        PFG_EDITORLOG("Building blas for mesh (sharedMeshInstanceId: " + std::to_string(sharedMeshInstanceId) + ")");
+        //RayTracerAccelerationStructureBuildInfo buildInfo =
+        //{
+        //    accelerationBuildGeometryInfo,
+        //    accelerationStructureBuildRangeInfos
+        //};
+        //graphicsInterface_->AccessQueue(BuildAccelerationStructureQueueCallback, 0, &buildInfo, true);
+
+        graphicsInterface_->EnsureOutsideRenderPass();
+
+        UnityVulkanRecordingState recordingState;
+        if (!graphicsInterface_->CommandRecordingState(&recordingState, kUnityVulkanGraphicsQueueAccess_DontCare))
+        {
+            PFG_EDITORLOGERROR("Cannot obtain recording state to build tlas");
+            return;
+        }
+
+        vkCmdBuildAccelerationStructuresKHR(
+            recordingState.commandBuffer,
+            1,
+            &accelerationBuildGeometryInfo,
+            accelerationStructureBuildRangeInfos.data());
+
+        auto index = garbageBuffers_.size();
+        garbageBuffers_.push_back(RayTracerGarbageBuffer());
+        garbageBuffers_[index].frameCount = recordingState.currentFrameNumber;
+        garbageBuffers_[index].buffer = std::move(scratchBuffer);
+
+        index = garbageBuffers_.size();
+        garbageBuffers_.push_back(RayTracerGarbageBuffer());
+        garbageBuffers_[index].frameCount = recordingState.currentFrameNumber;
+        garbageBuffers_[index].buffer = std::move(transformBuffer);
+
         PFG_EDITORLOG("Built blas for mesh (sharedMeshInstanceId: " + std::to_string(sharedMeshInstanceId) + ")");
+    }
+
+    void RayTracer::BuildTlas(VkCommandBuffer commandBuffer, uint64_t currentFrameNumber)
+    {
+        // If there is nothing to do, skip building the tlas
+        if (rebuildTlas_ == false && updateTlas_ == false)
+        {
+            return;
+        }
+
+        bool update = updateTlas_;
+        if (rebuildTlas_)
+        {
+            update = false;
+        }
+
+        if (meshInstancePool_.in_use_size() == 0)
+        {
+            // We have no instances, so there is nothing to build 
+            return;
+        }
+
+        // TODO: this is copied from BuildDescriptorBufferInfos.... kinda not great way to do this?
+        uint32_t i = 1;
+        std::map<int, uint32_t> materialInstanceIdToShaderIndex;
+        for (auto itr = materialPool_.in_use_begin(); itr != materialPool_.in_use_end(); ++itr)
+        {
+            auto materialInstanceId = (*itr).first;
+            materialInstanceIdToShaderIndex.insert(std::make_pair(materialInstanceId, i));
+            ++i;
+        }
+
+        if (!update)
+        {
+            // Build instance buffer from scratch
+            std::vector<VkAccelerationStructureInstanceKHR> instanceAccelerationStructures;
+            instanceAccelerationStructures.resize(meshInstancePool_.in_use_size(), VkAccelerationStructureInstanceKHR{});
+
+            // Gather instances
+            uint32_t instanceAccelerationStructuresIndex = 0;
+            for (auto i = meshInstancePool_.in_use_begin(); i != meshInstancePool_.in_use_end(); ++i)
+            {
+                auto gameObjectInstanceId = (*i).first;
+
+                auto& instance = meshInstancePool_[gameObjectInstanceId];
+
+                const auto& t = instance.localToWorld;
+                VkTransformMatrixKHR transformMatrix = {
+                    t[0][0], t[0][1], t[0][2], t[0][3],
+                    t[1][0], t[1][1], t[1][2], t[1][3],
+                    t[2][0], t[2][1], t[2][2], t[2][3]
+                };
+
+                /*PFG_EDITORLOG("Instance transform matrix loop: ");
+                PFG_EDITORLOG(std::to_string(transformMatrix.matrix[0][0]) + ", " + std::to_string(transformMatrix.matrix[0][1]) + ", " + std::to_string(transformMatrix.matrix[0][2]) + ", " + std::to_string(transformMatrix.matrix[0][3]));
+                PFG_EDITORLOG(std::to_string(transformMatrix.matrix[1][0]) + ", " + std::to_string(transformMatrix.matrix[1][1]) + ", " + std::to_string(transformMatrix.matrix[1][2]) + ", " + std::to_string(transformMatrix.matrix[1][3]));
+                PFG_EDITORLOG(std::to_string(transformMatrix.matrix[2][0]) + ", " + std::to_string(transformMatrix.matrix[2][1]) + ", " + std::to_string(transformMatrix.matrix[2][2]) + ", " + std::to_string(transformMatrix.matrix[2][3]));*/
+
+                VkAccelerationStructureInstanceKHR& accelerationStructureInstance = instanceAccelerationStructures[instanceAccelerationStructuresIndex];
+                accelerationStructureInstance.transform = transformMatrix;
+                accelerationStructureInstance.instanceCustomIndex = instanceAccelerationStructuresIndex;
+                accelerationStructureInstance.mask = 0xFF;
+                accelerationStructureInstance.instanceShaderBindingTableRecordOffset = 0;
+                accelerationStructureInstance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+                accelerationStructureInstance.accelerationStructureReference = sharedMeshesPool_[instance.sharedMeshInstanceId]->blas.deviceAddress;
+
+                /*PFG_EDITORLOG("VkAccelerationStructureInstanceKHR.transform: ");
+                PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[0][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[0][3]));
+                PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[1][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[1][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[1][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[1][3]));
+                PFG_EDITORLOG(std::to_string(accelerationStructureInstance.transform.matrix[2][0]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[2][1]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[2][2]) + ", " + std::to_string(accelerationStructureInstance.transform.matrix[2][3]));*/
+
+                // Map materials here, but seems like not the greatest place to do so?
+                auto instanceData = reinterpret_cast<ShaderInstanceData*>(instance.instanceData.Map());
+                if (instance.materialInstanceId == -1)
+                {
+                    instanceData->materialIndex = 0;
+                }
+                else
+                {
+                    instanceData->materialIndex = materialInstanceIdToShaderIndex[instance.materialInstanceId];
+                }
+
+                instanceData->localToWorld = instance.localToWorld;
+                instanceData->worldToLocal = instance.worldToLocal;
+
+                instance.instanceData.Unmap();
+
+                // Consumed current index, advance
+                ++instanceAccelerationStructuresIndex;
+            }
+
+            // Destroy anytihng if created before
+            instancesAccelerationStructuresBuffer_.Destroy();
+
+            instancesAccelerationStructuresBuffer_.Create(
+                "instanceBuffer",
+                device_,
+                physicalDeviceMemoryProperties_,
+                instanceAccelerationStructures.size() * sizeof(VkAccelerationStructureInstanceKHR),
+                VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                Vulkan::Buffer::kDefaultMemoryPropertyFlags);
+            instancesAccelerationStructuresBuffer_.UploadData(instanceAccelerationStructures.data(), instancesAccelerationStructuresBuffer_.GetSize());
+
+            /*auto instances = reinterpret_cast<VkAccelerationStructureInstanceKHR*>(instancesAccelerationStructuresBuffer_.Map());
+            for (int i = 0; i < meshInstancePool_.in_use_size(); ++i)
+            {
+
+                PFG_EDITORLOG("Instance transform matrix after upload: ");
+                PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[0][0]) + ", " + std::to_string(instances[i].transform.matrix[0][1]) + ", " + std::to_string(instances[i].transform.matrix[0][2]) + ", " + std::to_string(instances[i].transform.matrix[0][3]));
+                PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[1][0]) + ", " + std::to_string(instances[i].transform.matrix[1][1]) + ", " + std::to_string(instances[i].transform.matrix[1][2]) + ", " + std::to_string(instances[i].transform.matrix[1][3]));
+                PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[2][0]) + ", " + std::to_string(instances[i].transform.matrix[2][1]) + ", " + std::to_string(instances[i].transform.matrix[2][2]) + ", " + std::to_string(instances[i].transform.matrix[2][3]));
+
+            }
+            instancesAccelerationStructuresBuffer_.Unmap();*/
+        }
+        else
+        {
+            // Update transforms in buffer, should be the exact same layout
+
+            auto instances = reinterpret_cast<VkAccelerationStructureInstanceKHR*>(instancesAccelerationStructuresBuffer_.Map());
+
+            // Gather instances
+            uint32_t instanceAccelerationStructuresIndex = 0;
+            for (auto i = meshInstancePool_.in_use_begin(); i != meshInstancePool_.in_use_end(); ++i)
+            {
+                auto gameObjectInstanceId = (*i).first;
+
+                auto& instance = meshInstancePool_[gameObjectInstanceId];
+
+                const auto& t = instance.localToWorld;
+                VkTransformMatrixKHR transformMatrix = {
+                    t[0][0], t[0][1], t[0][2], t[0][3],
+                    t[1][0], t[1][1], t[1][2], t[1][3],
+                    t[2][0], t[2][1], t[2][2], t[2][3]
+                };
+
+                //PFG_EDITORLOG("Instance transform matrix: ");
+                //PFG_EDITORLOG(std::to_string(t[0][0]) + ", " + std::to_string(t[0][1]) + ", " + std::to_string(t[0][2]) + ", " + std::to_string(t[0][3]));
+                //PFG_EDITORLOG(std::to_string(t[1][0]) + ", " + std::to_string(t[1][1]) + ", " + std::to_string(t[1][2]) + ", " + std::to_string(t[1][3]));
+                //PFG_EDITORLOG(std::to_string(t[2][0]) + ", " + std::to_string(t[2][1]) + ", " + std::to_string(t[2][2]) + ", " + std::to_string(t[2][3]));
+
+                instances[instanceAccelerationStructuresIndex].transform = transformMatrix;
+
+                // Map materials here, but seems like not the greatest place to do so?
+                auto instanceData = reinterpret_cast<ShaderInstanceData*>(instance.instanceData.Map());
+                if (instance.materialInstanceId == -1)
+                {
+                    instanceData->materialIndex = 0;
+                }
+                else
+                {
+                    instanceData->materialIndex = materialInstanceIdToShaderIndex[instance.materialInstanceId];
+                }
+
+                instanceData->localToWorld = instance.localToWorld;
+                instanceData->worldToLocal = instance.worldToLocal;
+
+                instance.instanceData.Unmap();
+
+
+                // Consumed current index, advance
+                ++instanceAccelerationStructuresIndex;
+            }
+            instancesAccelerationStructuresBuffer_.Unmap();
+        }
+
+        //auto instances = reinterpret_cast<VkAccelerationStructureInstanceKHR*>(instancesAccelerationStructuresBuffer_.Map());
+        //for (int i = 0; i < meshInstancePool_.in_use_size(); ++i)
+        //{
+        //    
+        //    PFG_EDITORLOG("Instance transform matrix: ");
+        //        PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[0][0]) + ", " + std::to_string(instances[i].transform.matrix[0][1]) + ", " + std::to_string(instances[i].transform.matrix[0][2]) + ", " + std::to_string(instances[i].transform.matrix[0][3]));
+        //        PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[1][0]) + ", " + std::to_string(instances[i].transform.matrix[1][1]) + ", " + std::to_string(instances[i].transform.matrix[1][2]) + ", " + std::to_string(instances[i].transform.matrix[1][3]));
+        //        PFG_EDITORLOG(std::to_string(instances[i].transform.matrix[2][0]) + ", " + std::to_string(instances[i].transform.matrix[2][1]) + ", " + std::to_string(instances[i].transform.matrix[2][2]) + ", " + std::to_string(instances[i].transform.matrix[2][3]));
+        //        
+        //}
+        //instancesAccelerationStructuresBuffer_.Unmap();
+
+        // The top level acceleration structure contains (bottom level) instance as the input geometry
+        VkAccelerationStructureGeometryInstancesDataKHR accelerationStructureGeometryInstancesData = {};
+        accelerationStructureGeometryInstancesData.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+        accelerationStructureGeometryInstancesData.arrayOfPointers = VK_FALSE;
+        accelerationStructureGeometryInstancesData.data.deviceAddress = instancesAccelerationStructuresBuffer_.GetBufferDeviceAddressConst().deviceAddress;
+
+        VkAccelerationStructureGeometryKHR accelerationStructureGeometry = {};
+        accelerationStructureGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+        accelerationStructureGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+        accelerationStructureGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+        accelerationStructureGeometry.geometry.instances = accelerationStructureGeometryInstancesData;
+
+        // Get the size requirements for buffers involved in the acceleration structure build process
+        VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo = {};
+        accelerationStructureBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+        accelerationStructureBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+        accelerationStructureBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+        accelerationStructureBuildGeometryInfo.geometryCount = 1;
+        accelerationStructureBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
+
+        // Number of instances
+        uint32_t instancesCount = static_cast<uint32_t>(meshInstancePool_.in_use_size());
+
+        VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo = {};
+        accelerationStructureBuildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+        vkGetAccelerationStructureBuildSizesKHR(
+            device_,
+            VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+            &accelerationStructureBuildGeometryInfo,
+            &instancesCount,
+            &accelerationStructureBuildSizesInfo);
+
+        if (!update)
+        {
+            if (tlas_.accelerationStructure != VK_NULL_HANDLE)
+            {
+                vkDestroyAccelerationStructureKHR(device_, tlas_.accelerationStructure, nullptr);
+            }
+            tlas_.buffer.Destroy();
+
+            // Create a buffer to hold the acceleration structure
+            tlas_.buffer.Create(
+                "tlas",
+                device_,
+                physicalDeviceMemoryProperties_,
+                accelerationStructureBuildSizesInfo.accelerationStructureSize,
+                VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR,
+                Vulkan::Buffer::kDefaultMemoryPropertyFlags);
+
+            // Create the acceleration structure
+            VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo = {};
+            accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+            accelerationStructureCreateInfo.buffer = tlas_.buffer.GetBuffer();
+            accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
+            accelerationStructureCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+            VK_CHECK("vkCreateAccelerationStructureKHR", vkCreateAccelerationStructureKHR(device_, &accelerationStructureCreateInfo, nullptr, &tlas_.accelerationStructure));
+
+            assert(tlas_.accelerationStructure != VK_NULL_HANDLE);
+        }
+
+        // The actual build process starts here
+
+        // Create a scratch buffer as a temporary storage for the acceleration structure build
+        auto scratchBuffer = std::make_unique<Vulkan::Buffer>();
+        scratchBuffer->Create(
+            "scratch",
+            device_,
+            physicalDeviceMemoryProperties_,
+            accelerationStructureBuildSizesInfo.buildScratchSize,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        VkAccelerationStructureBuildGeometryInfoKHR accelerationBuildGeometryInfo = {};
+        accelerationBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+        accelerationBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+        accelerationBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
+        accelerationBuildGeometryInfo.mode = update ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+        accelerationBuildGeometryInfo.srcAccelerationStructure = update ? tlas_.accelerationStructure : VK_NULL_HANDLE;
+        accelerationBuildGeometryInfo.dstAccelerationStructure = tlas_.accelerationStructure;
+        accelerationBuildGeometryInfo.geometryCount = 1;
+        accelerationBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
+        accelerationBuildGeometryInfo.scratchData = scratchBuffer->GetBufferDeviceAddress();
+
+
+        VkAccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo;
+        accelerationStructureBuildRangeInfo.primitiveCount = static_cast<uint32_t>(meshInstancePool_.in_use_size());
+        accelerationStructureBuildRangeInfo.primitiveOffset = 0;
+        accelerationStructureBuildRangeInfo.firstVertex = 0;
+        accelerationStructureBuildRangeInfo.transformOffset = 0;
+
+        std::vector<VkAccelerationStructureBuildRangeInfoKHR*> accelerationStructureBuildRangeInfos = { &accelerationStructureBuildRangeInfo };
+
+        // Get the top acceleration structure's handle, which will be used to setup it's descriptor
+        VkAccelerationStructureDeviceAddressInfoKHR accelerationStructureDeviceAddressInfo = {};
+        accelerationStructureDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
+        accelerationStructureDeviceAddressInfo.accelerationStructure = tlas_.accelerationStructure;
+        tlas_.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device_, &accelerationStructureDeviceAddressInfo);
+
+        vkCmdBuildAccelerationStructuresKHR(
+            commandBuffer,
+            1,
+            &accelerationBuildGeometryInfo,
+            accelerationStructureBuildRangeInfos.data());
+
+        auto index = garbageBuffers_.size();
+        garbageBuffers_.push_back(RayTracerGarbageBuffer());
+        garbageBuffers_[index].frameCount = currentFrameNumber;
+        garbageBuffers_[index].buffer = std::move(scratchBuffer);
+
+        //// Build the acceleration structure on the device
+        //RayTracerAccelerationStructureBuildInfo buildInfo =
+        //{
+        //    accelerationBuildGeometryInfo,
+        //    accelerationStructureBuildRangeInfos
+        //};
+        //graphicsInterface_->AccessQueue(BuildAccelerationStructureQueueCallback, 0, &buildInfo, true);
+
+        //scratchBuffer.Destroy();
+
+        if (!update)
+        {
+            PFG_EDITORLOG("Succesfully built tlas");
+        }
+        //else
+        //{
+        //    PFG_EDITORLOG("Succesfully updated tlas");
+        //}
+
+
+        // We did any pending work, reset flags
+        rebuildTlas_ = false;
+        updateTlas_ = false;
+    }
+
+    void UNITY_INTERFACE_API RayTracer::BuildAccelerationStructureQueueCallback(int eventId, void* data)
+    {
+        PixelsForGlory::Vulkan::RayTracer::Instance().BuildAccelerationStructureInQueue(data);
+
+    }
+
+    void RayTracer::BuildAccelerationStructureInQueue(void* data)
+    {
+        // Build the acceleration structure on the device 
+        RayTracerAccelerationStructureBuildInfo* buildInfo = reinterpret_cast<RayTracerAccelerationStructureBuildInfo*>(data);
+
+        graphicsInterface_->EnsureOutsideRenderPass();
+
+        UnityVulkanRecordingState recordingState;
+        if (!graphicsInterface_->CommandRecordingState(&recordingState, kUnityVulkanGraphicsQueueAccess_DontCare))
+        {
+            PFG_EDITORLOGERROR("Cannot obtain recording state to build blas");
+            return;
+        }
+
+        PFG_EDITORLOG("vkCmdBuildAccelerationStructuresKHR");
+
+        vkCmdBuildAccelerationStructuresKHR(
+            recordingState.commandBuffer,
+            1,
+            &buildInfo->accelerationBuildGeometryInfo,
+            buildInfo->accelerationStructureBuildRangeInfos.data());
     }
 
     void RayTracer::CreateDescriptorSetsLayouts()

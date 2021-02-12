@@ -112,6 +112,12 @@ namespace PixelsForGlory::Vulkan
         RayTracerAccelerationStructure blas;
     };
     
+    struct RayTracerAccelerationStructureBuildInfo
+    {
+        VkAccelerationStructureBuildGeometryInfoKHR& accelerationBuildGeometryInfo;
+        std::vector<VkAccelerationStructureBuildRangeInfoKHR*>& accelerationStructureBuildRangeInfos;
+    };
+
     struct RayTracerMeshInstanceData
     {
         RayTracerMeshInstanceData()
@@ -183,7 +189,6 @@ namespace PixelsForGlory::Vulkan
         virtual AddResourceResult AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, int materialInstanceId, float* l2wMatrix, float* w2lMatrix);
         virtual void UpdateTlasInstance(int gameObjectInstanceId, int materialInstanceId, float* l2wMatrix, float* w2lMatrix);
         virtual void RemoveTlasInstance(int gameObjectInstanceId);
-        virtual void BuildTlas();
         virtual void Prepare();
         virtual void ResetPipeline();
         virtual void UpdateCamera(int cameraInstanceId, float* camPos, float* camDir, float* camUp, float* camRight, float camNear, float camFar, float camFov);
@@ -246,6 +251,9 @@ namespace PixelsForGlory::Vulkan
         /// </summary>
         static VkDevice NullDevice;
 
+        /// <summary>
+        /// Graphics interface from Unity3D.  Used to secure command buffers
+        /// </summary>
         const IUnityGraphicsVulkan* graphicsInterface_;
         
         // Alias for graphicsInterface_->Instance().device
@@ -334,28 +342,15 @@ namespace PixelsForGlory::Vulkan
         RayTracer();    // Private for singleton
 
         /// <summary>
-        /// Creates command pool for one off commands
-        /// </summary>
-        /// <param name="queueFamilyIndex"></param>
-        void CreateCommandPool(uint32_t queueFamilyIndex, VkCommandPool& outCommandPool);
-
-        /// <summary>
-        /// Creates a command buffer that is intended for quick use and will be destroyed when flushed
-        /// </summary>
-        void CreateWorkerCommandBuffer(VkCommandBufferLevel level, VkCommandPool commandPool, VkCommandBuffer& outCommandBuffer);
-
-        /// <summary>
-        /// Submits a command buffer created by CreateWorkerCommandBuffer
-        /// </summary>
-        /// <param name="commandBuffer"></param>
-        /// <param name="queue"></param>
-        void SubmitWorkerCommandBuffer(VkCommandBuffer commandBuffer, VkCommandPool commandPool, const VkQueue& queue);
-
-        /// <summary>
         /// Build a bottom level acceleration structure for an added shared mesh
         /// </summary>
         /// <param name="sharedMeshPoolIndex"></param>
         void BuildBlas(int sharedMeshInstanceId);
+
+        void BuildTlas(VkCommandBuffer commandBuffer, uint64_t currentFrameNumber);
+
+        static void UNITY_INTERFACE_API BuildAccelerationStructureQueueCallback(int eventId, void* data);
+        void BuildAccelerationStructureInQueue(void* data);
 
         /// <summary>
         /// Create descriptor set layouts for shaders

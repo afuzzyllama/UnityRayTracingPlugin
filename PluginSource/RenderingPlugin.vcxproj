@@ -36,7 +36,6 @@
     <ClInclude Include="source\vulkan.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="source\PixelsForGlory\Debug.cpp" />
     <ClCompile Include="source\PixelsForGlory\RayTracerAPI.cpp" />
     <ClCompile Include="source\PixelsForGlory\Vulkan\RayTracer.cpp" />
     <ClCompile Include="source\PixelsForGlory\Vulkan\RayTracerAPI_VulkanHooks.cpp" />

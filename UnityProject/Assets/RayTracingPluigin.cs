@@ -26,9 +26,6 @@ namespace PixelsForGlory
         public static extern void RemoveTlasInstance(int gameObjectInstanceId);
 
         [DllImport("RayTracingPlugin")]
-        public static extern void BuildTlas();
-
-        [DllImport("RayTracingPlugin")]
         public static extern void Prepare();
 
         [DllImport("RayTracingPlugin")]

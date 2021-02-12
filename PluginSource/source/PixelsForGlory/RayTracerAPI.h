@@ -110,11 +110,6 @@ namespace PixelsForGlory
         virtual void RemoveTlasInstance(int gameObjectInstanceId) = 0;
 
         /// <summary>
-        /// Build top level acceleration structure
-        /// </summary>
-        virtual void BuildTlas() = 0;
-
-        /// <summary>
         /// Prepare the ray tracer for rendering
         /// </summary>
         virtual void Prepare() = 0;

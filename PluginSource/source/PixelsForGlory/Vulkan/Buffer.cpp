@@ -78,6 +78,7 @@ namespace PixelsForGlory::Vulkan
     }
 
     void Buffer::Destroy() {
+        PFG_EDITORLOG("Destroying: " + name_);
         if (device_ == VK_NULL_HANDLE)
         {
             // No device set, nothing was created
