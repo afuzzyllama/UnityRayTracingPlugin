@@ -1,3 +1,5 @@
+// File to share structures between Vulkan C++ code and GLSL
+
 #ifndef SHADER_CONSTANTS_H
 #define SHADER_CONSTANTS_H
 

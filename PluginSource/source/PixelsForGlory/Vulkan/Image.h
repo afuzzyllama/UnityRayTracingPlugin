@@ -6,6 +6,9 @@
 
 namespace PixelsForGlory::Vulkan
 {
+    /// <summary>
+    /// Represents a Vulkan image resource
+    /// </summary>
     class Image : public IResource {
     public:
         static void UpdateImageBarrier(

@@ -6,6 +6,9 @@
 
 namespace PixelsForGlory::Vulkan
 {
+    /// <summary>
+    /// Represents a shader binding table for ray tracing pipeline
+    /// </summary>
     class ShaderBindingTable
     {
     public:

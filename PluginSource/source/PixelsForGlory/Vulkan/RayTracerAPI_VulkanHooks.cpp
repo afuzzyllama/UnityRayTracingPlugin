@@ -16,6 +16,8 @@ namespace PixelsForGlory::Vulkan
 // include volk.c for implementation
 #include "volk.c"
 
+// Below are all the hooks required for setting up ray tracing in Vulkan.  These calls are injected into the Unity startup for Vulkan.
+
 static VKAPI_ATTR VkResult VKAPI_CALL Hook_vkCreateInstance(const VkInstanceCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkInstance* pInstance)
 {
     PFG_EDITORLOG("Hook_vkCreateInstance");

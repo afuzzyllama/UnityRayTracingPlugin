@@ -134,6 +134,13 @@ static VkResult CreateDebugUtilsMessengerEXT(VkInstance instance,
     }
 }
 
+/// <summary>
+/// Get the memory type index from the passed in requirements and properties
+/// </summary>
+/// <param name="physicalDeviceMemoryProperties"></param>
+/// <param name="memoryRequiriments"></param>
+/// <param name="memoryProperties"></param>
+/// <returns></returns>
 uint32_t static GetMemoryType(VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties, VkMemoryRequirements& memoryRequiriments, VkMemoryPropertyFlags memoryProperties) {
     uint32_t result = 0;
     for (uint32_t memoryTypeIndex = 0; memoryTypeIndex < VK_MAX_MEMORY_TYPES; ++memoryTypeIndex) {
@@ -147,6 +154,11 @@ uint32_t static GetMemoryType(VkPhysicalDeviceMemoryProperties physicalDeviceMem
     return result;
 }
 
+/// <summary>
+/// Convert a float array representing a 4x4 matrix from Unity to a 4x4 matrix for Vulkan
+/// </summary>
+/// <param name="src"></param>
+/// <param name="dst"></param>
 void static FloatArrayToMatrix(const float* src, mat4& dst) {
 
     // Unity is column major, but Vulkan is row major.  Convert here

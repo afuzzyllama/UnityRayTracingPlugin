@@ -3,6 +3,9 @@
 
 namespace PixelsForGlory::Vulkan
 {
+    /// <summary>
+    /// Represents a shader for a shader binding table
+    /// </summary>
     class Shader {
     public:
         Shader(VkDevice device);
