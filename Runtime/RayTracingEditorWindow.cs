@@ -5,7 +5,7 @@ namespace PixelsForGlory.RayTracing
 {
     public class RayTracingEditorWindow : EditorWindow
     {
-        [MenuItem("Window/Analysis/Ray Tracing")]
+        [MenuItem("Window/Analysis/Pixels for Glory/Ray Tracing")]
         public static void ShowWindow()
         {
             var window = EditorWindow.GetWindow(typeof(RayTracingEditorWindow));

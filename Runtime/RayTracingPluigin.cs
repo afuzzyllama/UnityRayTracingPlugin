@@ -132,7 +132,7 @@ namespace PixelsForGlory.RayTracing
             Watcher.Path = sourcePath;
 
             Watcher.NotifyFilter = System.IO.NotifyFilters.LastWrite;
-            Watcher.Filter = "*.glsl";
+            Watcher.Filter = "*.bin";
 
             Watcher.Changed += OnChanged;
 
@@ -145,52 +145,6 @@ namespace PixelsForGlory.RayTracing
 
         private static void OnChanged(object source, System.IO.FileSystemEventArgs e)
         {
-            string glslCompiler = "glslangValidator.exe";
-            string glslDir = RootDir + "\\glslang~\\2020.07.28\\bin";
-            string sourceFolder = RootDir + "\\PluginSource~\\source\\PixelsForGlory\\Shaders";
-            string binariesFolder = RootDir + "\\Runtime\\Plugins\\RayTracing\\x86_64";
-
-            var pathParts = e.Name.Split('\\');
-            var nameParts = pathParts[pathParts.Length - 1].Split('.');
-            var nameOnly = nameParts[0];
-
-            var stageParts = nameOnly.Split('_');
-            string stage = $"r{stageParts[1]}";
-            
-            var glslValidator = $"{glslDir}\\{glslCompiler}";
-            var glslPath = $"{sourceFolder}\\{nameOnly}.glsl";
-
-            // What the actual fuck is happening here?
-            var binaryPath = $"{binariesFolder}\\{nameOnly}.bin";
-
-            var arguments = $"--target-env vulkan1.2 -V -S {stage} {glslPath} -o {binaryPath}";
-
-            Debug.Log($"Rebuilding shader: {glslValidator} {arguments}");
-
-            var startInfo = new System.Diagnostics.ProcessStartInfo
-            {
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                WorkingDirectory = RootDir,
-                FileName = glslValidator,
-                Arguments = arguments
-            };
-
-            var process = new System.Diagnostics.Process
-            {
-                StartInfo = startInfo
-            };
-
-            process.OutputDataReceived += (sender, args) => { if (args.Data != null) { Debug.Log(args.Data); } };
-            process.ErrorDataReceived += (sender, args) => { if (args.Data != null) { Debug.LogError(args.Data); } };
-
-            process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-            process.WaitForExit();
-
             PixelsForGlory.RayTracing.RayTracingPlugin.ResetPipeline();
 
         }

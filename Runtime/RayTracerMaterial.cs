@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace PixelsForGlory.RayTracing
 {
-    [CreateAssetMenu(menuName = "Ray Tracing/Material")]
+    [CreateAssetMenu(menuName = "Pixels for Glory/Ray Tracing/Material")]
     public class RayTracerMaterial : ScriptableObject
     {
         public Texture2D albedoTexture;

@@ -1,15 +1,17 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 
+using System.IO;
+
 namespace PixelsForGlory.RayTracing
 {
-    [CreateAssetMenu(menuName = "Rendering/Ray Tracing Render Pipeline")]
+    [CreateAssetMenu(menuName = "Pixels for Glory/Ray Tracing/Ray Tracing Render Pipeline")]
     public class RayTracingRenderPipelineAsset : RenderPipelineAsset
     {
         protected override RenderPipeline CreatePipeline()
         {
-            PixelsForGlory.RayTracing.RayTracingPlugin.SetShaderFolder(System.IO.Path.Combine(Application.dataPath, "Plugins", "RayTracing", "x86_64"));
-            PixelsForGlory.RayTracing.RayTracingPlugin.MonitorShaders(System.IO.Path.Combine(Application.dataPath, "..", "..", "PluginSource", "source", "PixelsForGlory", "Shaders"));
+            PixelsForGlory.RayTracing.RayTracingPlugin.SetShaderFolder(Path.GetFullPath("Packages/com.pixelsforglory.raytracing/Runtime/Plugins/x86_64"));
+            PixelsForGlory.RayTracing.RayTracingPlugin.MonitorShaders(Path.GetFullPath("Packages/com.pixelsforglory.raytracing/Runtime/Plugins/x86_64"));
             PixelsForGlory.RayTracing.RayTracingPlugin.Prepare();
             return new RayTracingRenderPipeline();
         }

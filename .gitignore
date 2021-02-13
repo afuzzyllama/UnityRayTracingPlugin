@@ -2,7 +2,8 @@
 # This .gitignore file was automatically created by Microsoft(R) Visual Studio.
 ################################################################################
 
-/build/x64/Debug
+/build/
+/build.meta
 /glslang~/2020.07.28/bin
 /glslang~/2020.07.28/include/glslang
 /glslang~/2020.07.28/lib
