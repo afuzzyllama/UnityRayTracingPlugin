@@ -1,15 +1,17 @@
 {
-    "name": "com.pixelsforglory.raytracing",
-    "version": "2.0.0-alpha",
-    "displayName": "Vulkan Ray-Tracing",
-    "description": "native plugin for Unity3d that replaces the renderer with a hardware accelerated ray tracer implemented with Vulkan.",
-    "unity": "2020.2",
-},
-"keywords":[
-    "ray-tracing"
-],
-"author": {
-    "name": "afuzzyllama",
-    "email": "admin@pixelsforglory.com",
-    "url": "pixelsforglory.com"
+    {
+        "name": "com.pixelsforglory.raytracing",
+        "version": "2.0.0-alpha",
+        "displayName": "Vulkan Ray-Tracing",
+        "description": "native plugin for Unity3d that replaces the renderer with a hardware accelerated ray tracer implemented with Vulkan.",
+        "unity": "2020.2",
+    },
+    "keywords":[
+        "ray-tracing"
+    ],
+    "author": {
+        "name": "afuzzyllama",
+        "email": "admin@pixelsforglory.com",
+        "url": "pixelsforglory.com"
+    }
 }
