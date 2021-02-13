@@ -1,10 +1,10 @@
 ![Current State](Screenshot.png?raw=true "Current State")
 
 # Unity Ray Tracing Plugin
-Proof of concept native plugin for Unity3d that replaces the renderer with a hardware accelerated ray tracer.
+Proof of concept native plugin for Unity3d that replaces the renderer with a hardware accelerated ray tracer implemented with Vulkan.
 
 ## Usage
-- Build plugin
+- Point to this repository to [install as a package in a Unity project](https://docs.unity3d.com/Manual/upm-git.html)
 - In Unity
   - Set the Graphics API to Vulkan under `Project Settings -> Player` 
   - Add `Ray Traceable Light` to any light in the scene to have the plugin register it for lighting
