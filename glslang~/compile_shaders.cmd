@@ -2,8 +2,8 @@
 
 setlocal
 set GLSL_COMPILER=glslangValidator.exe
-set SOURCE_FOLDER="./PluginSource/source/PixelsForGlory/Shaders/"
-set BINARIES_FOLDER="./Runtime/Plugins/x86_64/"
+set SOURCE_FOLDER="../PluginSource~/source/PixelsForGlory/Shaders/"
+set BINARIES_FOLDER="../Runtime/Plugins/x86_64/"
 
 :: raygen shaders
 %GLSL_COMPILER% --target-env vulkan1.2 -V -S rgen %SOURCE_FOLDER%ray_gen.glsl -o %BINARIES_FOLDER%ray_gen.bin
