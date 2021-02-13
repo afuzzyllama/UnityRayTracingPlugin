@@ -146,8 +146,8 @@ namespace PixelsForGlory.RayTracing
         private static void OnChanged(object source, System.IO.FileSystemEventArgs e)
         {
             string glslCompiler = "glslangValidator.exe";
-            string glslDir = RootDir + "\\glslang\\2020.07.28\\bin";
-            string sourceFolder = RootDir + "\\PluginSource\\source\\PixelsForGlory\\Shaders";
+            string glslDir = RootDir + "\\glslang~\\2020.07.28\\bin";
+            string sourceFolder = RootDir + "\\PluginSource~\\source\\PixelsForGlory\\Shaders";
             string binariesFolder = RootDir + "\\Runtime\\Plugins\\RayTracing\\x86_64";
 
             var pathParts = e.Name.Split('\\');
