@@ -42,7 +42,7 @@ namespace PixelsForGlory.RayTracing
             _context.SetupCameraProperties(_camera);
             
             var colorHandle = GCHandle.Alloc(_camera.backgroundColor, GCHandleType.Pinned);
-            PixelsForGlory.RayTracingPlugin.UpdateSceneData(colorHandle.AddrOfPinnedObject());
+            PixelsForGlory.RayTracing.RayTracingPlugin.UpdateSceneData(colorHandle.AddrOfPinnedObject());
             colorHandle.Free();
 
             int width;
@@ -70,7 +70,7 @@ namespace PixelsForGlory.RayTracing
                 // Call Apply() so it's actually uploaded to the GPU
                 _targets[cameraInstanceId].Apply();
 
-                if (PixelsForGlory.RayTracingPlugin.SetRenderTarget(cameraInstanceId, (int)_targets[cameraInstanceId].format, _targets[cameraInstanceId].width, _targets[cameraInstanceId].height, _targets[cameraInstanceId].GetNativeTexturePtr()) == 0)
+                if (PixelsForGlory.RayTracing.RayTracingPlugin.SetRenderTarget(cameraInstanceId, (int)_targets[cameraInstanceId].format, _targets[cameraInstanceId].width, _targets[cameraInstanceId].height, _targets[cameraInstanceId].GetNativeTexturePtr()) == 0)
                 {
                     Debug.Log("Something went wrong with setting render target");
                     return false;
@@ -81,14 +81,14 @@ namespace PixelsForGlory.RayTracing
             var camDirHandle = GCHandle.Alloc(_camera.transform.forward, GCHandleType.Pinned);
             var camUpHandle = GCHandle.Alloc(-_camera.transform.up, GCHandleType.Pinned);
             var camRightHandle = GCHandle.Alloc(_camera.transform.right, GCHandleType.Pinned);
-            PixelsForGlory.RayTracingPlugin.UpdateCamera(cameraInstanceId,
-                                                        camPosHandle.AddrOfPinnedObject(),
-                                                        camDirHandle.AddrOfPinnedObject(),
-                                                        camUpHandle.AddrOfPinnedObject(),
-                                                        camRightHandle.AddrOfPinnedObject(),
-                                                        _camera.nearClipPlane,
-                                                        _camera.farClipPlane,
-                                                        Mathf.Deg2Rad * _camera.fieldOfView);
+            PixelsForGlory.RayTracing.RayTracingPlugin.UpdateCamera(cameraInstanceId,
+                                                                    camPosHandle.AddrOfPinnedObject(),
+                                                                    camDirHandle.AddrOfPinnedObject(),
+                                                                    camUpHandle.AddrOfPinnedObject(),
+                                                                    camRightHandle.AddrOfPinnedObject(),
+                                                                    _camera.nearClipPlane,
+                                                                    _camera.farClipPlane,
+                                                                    Mathf.Deg2Rad * _camera.fieldOfView);
             camPosHandle.Free();
             camDirHandle.Free();
             camUpHandle.Free();
@@ -114,7 +114,7 @@ namespace PixelsForGlory.RayTracing
 
             string sampleName = "Trace rays";
             _commandBuffer.BeginSample(sampleName);
-            _commandBuffer.IssuePluginEventAndData(PixelsForGlory.RayTracingPlugin.GetEventAndDataFunc(), (int)Events.TraceRays, cameraInstanceIdHandle.AddrOfPinnedObject());
+            _commandBuffer.IssuePluginEventAndData(PixelsForGlory.RayTracing.RayTracingPlugin.GetEventAndDataFunc(), (int)Events.TraceRays, cameraInstanceIdHandle.AddrOfPinnedObject());
             _commandBuffer.Blit(_targets[_camera.GetInstanceID()], cameraTextureId);
             _commandBuffer.EndSample(sampleName);
 

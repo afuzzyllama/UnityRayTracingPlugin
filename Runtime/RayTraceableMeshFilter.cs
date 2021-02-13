@@ -60,14 +60,14 @@ namespace PixelsForGlory.RayTracing
             var uvsHandle = GCHandle.Alloc(uvs, GCHandleType.Pinned);
             var indicesHandle = GCHandle.Alloc(indices, GCHandleType.Pinned);
 
-            SharedMeshRegisteredWithRayTracer = (PixelsForGlory.RayTracingPlugin.AddSharedMesh(SharedMeshInstanceId,
-                                                                                                verticesHandle.AddrOfPinnedObject(),
-                                                                                                normalsHandle.AddrOfPinnedObject(),
-                                                                                                tangetsHandle.AddrOfPinnedObject(),
-                                                                                                uvsHandle.AddrOfPinnedObject(),
-                                                                                                vertices.Length,
-                                                                                                indicesHandle.AddrOfPinnedObject(),
-                                                                                                indices.Length) > 0);
+            SharedMeshRegisteredWithRayTracer = (PixelsForGlory.RayTracing.RayTracingPlugin.AddSharedMesh(SharedMeshInstanceId,
+                                                                                                          verticesHandle.AddrOfPinnedObject(),
+                                                                                                          normalsHandle.AddrOfPinnedObject(),
+                                                                                                          tangetsHandle.AddrOfPinnedObject(),
+                                                                                                          uvsHandle.AddrOfPinnedObject(),
+                                                                                                          vertices.Length,
+                                                                                                          indicesHandle.AddrOfPinnedObject(),
+                                                                                                          indices.Length) > 0);
 
             verticesHandle.Free();
             normalsHandle.Free();

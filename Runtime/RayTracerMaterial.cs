@@ -68,108 +68,108 @@ namespace PixelsForGlory.RayTracing
 
             if(albedoTexture != null)
             {
-                PixelsForGlory.RayTracingPlugin.AddTexture(albedoTexture.GetInstanceID(), albedoTexture.GetNativeTexturePtr());
+                PixelsForGlory.RayTracing.RayTracingPlugin.AddTexture(albedoTexture.GetInstanceID(), albedoTexture.GetNativeTexturePtr());
             }
 
             if (emissionTexture != null)
             {
-                PixelsForGlory.RayTracingPlugin.AddTexture(emissionTexture.GetInstanceID(), emissionTexture.GetNativeTexturePtr());
+                PixelsForGlory.RayTracing.RayTracingPlugin.AddTexture(emissionTexture.GetInstanceID(), emissionTexture.GetNativeTexturePtr());
             }
 
             if (normalTexture != null)
             {
-                PixelsForGlory.RayTracingPlugin.AddTexture(normalTexture.GetInstanceID(), normalTexture.GetNativeTexturePtr());
+                PixelsForGlory.RayTracing.RayTracingPlugin.AddTexture(normalTexture.GetInstanceID(), normalTexture.GetNativeTexturePtr());
             }
 
             if (metallicTexture != null)
             {
-                PixelsForGlory.RayTracingPlugin.AddTexture(metallicTexture.GetInstanceID(), metallicTexture.GetNativeTexturePtr());
+                PixelsForGlory.RayTracing.RayTracingPlugin.AddTexture(metallicTexture.GetInstanceID(), metallicTexture.GetNativeTexturePtr());
             }
 
             if (roughnessTexture != null)
             {
-                PixelsForGlory.RayTracingPlugin.AddTexture(roughnessTexture.GetInstanceID(), roughnessTexture.GetNativeTexturePtr());
+                PixelsForGlory.RayTracing.RayTracingPlugin.AddTexture(roughnessTexture.GetInstanceID(), roughnessTexture.GetNativeTexturePtr());
             }
 
             if (ambientOcclusionTexture != null)
             {
-                PixelsForGlory.RayTracingPlugin.AddTexture(ambientOcclusionTexture.GetInstanceID(), ambientOcclusionTexture.GetNativeTexturePtr());
+                PixelsForGlory.RayTracing.RayTracingPlugin.AddTexture(ambientOcclusionTexture.GetInstanceID(), ambientOcclusionTexture.GetNativeTexturePtr());
             }
 
-            PixelsForGlory.RayTracingPlugin.AddMaterial(InstanceId,
-                                                        albedo.r, albedo.g, albedo.b,
-                                                        emission.r, emission.g, emission.b,
-                                                        transmittance.r, transmittance.g, transmittance.b,
-                                                        metallic,
-                                                        roughness,
-                                                        indexOfRefraction,
-                                                        albedoTexture != null ? true : false,
-                                                        albedoTexture != null ? albedoTexture.GetInstanceID() : -1,
-                                                        emissionTexture != null ? true : false,
-                                                        emissionTexture != null ? emissionTexture.GetInstanceID() : -1,
-                                                        normalTexture != null ? true : false,
-                                                        normalTexture != null ? normalTexture.GetInstanceID() : -1,
-                                                        metallicTexture != null ? true : false,
-                                                        metallicTexture != null ? metallicTexture.GetInstanceID() : -1,
-                                                        roughnessTexture != null ? true : false,
-                                                        roughnessTexture != null ? roughnessTexture.GetInstanceID() : -1,
-                                                        ambientOcclusionTexture != null ? true : false,
-                                                        ambientOcclusionTexture != null ? ambientOcclusionTexture.GetInstanceID() : -1);
+            PixelsForGlory.RayTracing.RayTracingPlugin.AddMaterial(InstanceId,
+                                                                   albedo.r, albedo.g, albedo.b,
+                                                                   emission.r, emission.g, emission.b,
+                                                                   transmittance.r, transmittance.g, transmittance.b,
+                                                                   metallic,
+                                                                   roughness,
+                                                                   indexOfRefraction,
+                                                                   albedoTexture != null ? true : false,
+                                                                   albedoTexture != null ? albedoTexture.GetInstanceID() : -1,
+                                                                   emissionTexture != null ? true : false,
+                                                                   emissionTexture != null ? emissionTexture.GetInstanceID() : -1,
+                                                                   normalTexture != null ? true : false,
+                                                                   normalTexture != null ? normalTexture.GetInstanceID() : -1,
+                                                                   metallicTexture != null ? true : false,
+                                                                   metallicTexture != null ? metallicTexture.GetInstanceID() : -1,
+                                                                   roughnessTexture != null ? true : false,
+                                                                   roughnessTexture != null ? roughnessTexture.GetInstanceID() : -1,
+                                                                   ambientOcclusionTexture != null ? true : false,
+                                                                   ambientOcclusionTexture != null ? ambientOcclusionTexture.GetInstanceID() : -1);
         }
 
         public void Update()
         {
             if(_albedoTextureMonitor.CheckForUpdates() && albedoTexture != null)
             {
-                PixelsForGlory.RayTracingPlugin.AddTexture(albedoTexture.GetInstanceID(), albedoTexture.GetNativeTexturePtr());
+                PixelsForGlory.RayTracing.RayTracingPlugin.AddTexture(albedoTexture.GetInstanceID(), albedoTexture.GetNativeTexturePtr());
             }
 
             if (_emissionTextureMonitor.CheckForUpdates() && emissionTexture != null)
             {
-                PixelsForGlory.RayTracingPlugin.AddTexture(emissionTexture.GetInstanceID(), emissionTexture.GetNativeTexturePtr());
+                PixelsForGlory.RayTracing.RayTracingPlugin.AddTexture(emissionTexture.GetInstanceID(), emissionTexture.GetNativeTexturePtr());
             }
 
             if (_normalTextureMonitor.CheckForUpdates() && normalTexture != null)
             {
-                PixelsForGlory.RayTracingPlugin.AddTexture(normalTexture.GetInstanceID(), normalTexture.GetNativeTexturePtr());
+                PixelsForGlory.RayTracing.RayTracingPlugin.AddTexture(normalTexture.GetInstanceID(), normalTexture.GetNativeTexturePtr());
             }
 
             if (_metallicTextureMonitor.CheckForUpdates() && metallicTexture != null)
             {
-                PixelsForGlory.RayTracingPlugin.AddTexture(metallicTexture.GetInstanceID(), metallicTexture.GetNativeTexturePtr());
+                PixelsForGlory.RayTracing.RayTracingPlugin.AddTexture(metallicTexture.GetInstanceID(), metallicTexture.GetNativeTexturePtr());
             }
 
             if (_roughnessTextureMonitor.CheckForUpdates() && roughnessTexture != null)
             {
-                PixelsForGlory.RayTracingPlugin.AddTexture(roughnessTexture.GetInstanceID(), roughnessTexture.GetNativeTexturePtr());
+                PixelsForGlory.RayTracing.RayTracingPlugin.AddTexture(roughnessTexture.GetInstanceID(), roughnessTexture.GetNativeTexturePtr());
             }
             
             if (_ambientOcclusionTextureMonitor.CheckForUpdates() && ambientOcclusionTexture != null)
             {
-                PixelsForGlory.RayTracingPlugin.AddTexture(ambientOcclusionTexture.GetInstanceID(), ambientOcclusionTexture.GetNativeTexturePtr());
+                PixelsForGlory.RayTracing.RayTracingPlugin.AddTexture(ambientOcclusionTexture.GetInstanceID(), ambientOcclusionTexture.GetNativeTexturePtr());
             }
 
             if (_materialMonitor.CheckForUpdates())
             {
-                PixelsForGlory.RayTracingPlugin.UpdateMaterial(InstanceId,
-                                                        albedo.r, albedo.g, albedo.b,
-                                                        emission.r, emission.g, emission.b,
-                                                        transmittance.r, transmittance.g, transmittance.b,
-                                                        metallic,
-                                                        roughness,
-                                                        indexOfRefraction,
-                                                        albedoTexture != null ? true : false,
-                                                        albedoTexture != null ? albedoTexture.GetInstanceID() : -1,
-                                                        emissionTexture != null ? true : false,
-                                                        emissionTexture != null ? emissionTexture.GetInstanceID() : -1,
-                                                        normalTexture != null ? true : false,
-                                                        normalTexture != null ? normalTexture.GetInstanceID() : -1,
-                                                        metallicTexture != null ? true : false,
-                                                        metallicTexture != null ? metallicTexture.GetInstanceID() : -1,
-                                                        roughnessTexture != null ? true : false,
-                                                        roughnessTexture != null ? roughnessTexture.GetInstanceID() : -1,
-                                                        ambientOcclusionTexture != null ? true : false,
-                                                        ambientOcclusionTexture != null ? ambientOcclusionTexture.GetInstanceID() : -1);
+                PixelsForGlory.RayTracing.RayTracingPlugin.UpdateMaterial(InstanceId,
+                                                                          albedo.r, albedo.g, albedo.b,
+                                                                          emission.r, emission.g, emission.b,
+                                                                          transmittance.r, transmittance.g, transmittance.b,
+                                                                          metallic,
+                                                                          roughness,
+                                                                          indexOfRefraction,
+                                                                          albedoTexture != null ? true : false,
+                                                                          albedoTexture != null ? albedoTexture.GetInstanceID() : -1,
+                                                                          emissionTexture != null ? true : false,
+                                                                          emissionTexture != null ? emissionTexture.GetInstanceID() : -1,
+                                                                          normalTexture != null ? true : false,
+                                                                          normalTexture != null ? normalTexture.GetInstanceID() : -1,
+                                                                          metallicTexture != null ? true : false,
+                                                                          metallicTexture != null ? metallicTexture.GetInstanceID() : -1,
+                                                                          roughnessTexture != null ? true : false,
+                                                                          roughnessTexture != null ? roughnessTexture.GetInstanceID() : -1,
+                                                                          ambientOcclusionTexture != null ? true : false,
+                                                                          ambientOcclusionTexture != null ? ambientOcclusionTexture.GetInstanceID() : -1);
             }
 
             

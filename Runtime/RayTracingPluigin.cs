@@ -191,7 +191,7 @@ namespace PixelsForGlory.RayTracing
             process.BeginErrorReadLine();
             process.WaitForExit();
 
-            PixelsForGlory.RayTracingPlugin.ResetPipeline();
+            PixelsForGlory.RayTracing.RayTracingPlugin.ResetPipeline();
 
         }
 

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PixelsForGlory.RayTracing.Editor
+namespace PixelsForGlory.RayTracing
 {
     public class ReadOnlyAttribute : PropertyAttribute
     {

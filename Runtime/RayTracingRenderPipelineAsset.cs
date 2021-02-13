@@ -8,16 +8,16 @@ namespace PixelsForGlory.RayTracing
     {
         protected override RenderPipeline CreatePipeline()
         {
-            PixelsForGlory.RayTracingPlugin.SetShaderFolder(System.IO.Path.Combine(Application.dataPath, "Plugins", "RayTracing", "x86_64"));
-            PixelsForGlory.RayTracingPlugin.MonitorShaders(System.IO.Path.Combine(Application.dataPath, "..", "..", "PluginSource", "source", "PixelsForGlory", "Shaders"));
-            PixelsForGlory.RayTracingPlugin.Prepare();
+            PixelsForGlory.RayTracing.RayTracingPlugin.SetShaderFolder(System.IO.Path.Combine(Application.dataPath, "Plugins", "RayTracing", "x86_64"));
+            PixelsForGlory.RayTracing.RayTracingPlugin.MonitorShaders(System.IO.Path.Combine(Application.dataPath, "..", "..", "PluginSource", "source", "PixelsForGlory", "Shaders"));
+            PixelsForGlory.RayTracing.RayTracingPlugin.Prepare();
             return new RayTracingRenderPipeline();
         }
 
         protected override void OnDisable()
         {
             base.OnDisable();
-            PixelsForGlory.RayTracingPlugin.StopMonitoringShaders();
+            PixelsForGlory.RayTracing.RayTracingPlugin.StopMonitoringShaders();
         }
     }
 }    

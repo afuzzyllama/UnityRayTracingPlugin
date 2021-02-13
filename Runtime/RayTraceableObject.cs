@@ -82,11 +82,11 @@ namespace PixelsForGlory.RayTracing
 
             MaterialInstanceId = RayTracerMaterial == null ? -1 : RayTracerMaterial.InstanceId;
 
-            _meshInstanceRegisteredWithRayTracer = (PixelsForGlory.RayTracingPlugin.AddTlasInstance(InstanceId, 
-                                                                                                    _rayTracableMeshFilter.SharedMeshInstanceId,
-                                                                                                    MaterialInstanceId, 
-                                                                                                    l2wMatrixHandle.AddrOfPinnedObject(),
-                                                                                                    w2lMatrixHandle.AddrOfPinnedObject()) > 0);
+            _meshInstanceRegisteredWithRayTracer = (PixelsForGlory.RayTracing.RayTracingPlugin.AddTlasInstance(InstanceId, 
+                                                                                                               _rayTracableMeshFilter.SharedMeshInstanceId,
+                                                                                                               MaterialInstanceId, 
+                                                                                                               l2wMatrixHandle.AddrOfPinnedObject(),
+                                                                                                               w2lMatrixHandle.AddrOfPinnedObject()) > 0);
 
             l2wMatrixHandle.Free();
             w2lMatrixHandle.Free();
@@ -107,10 +107,10 @@ namespace PixelsForGlory.RayTracing
             var l2wMatrixHandle = GCHandle.Alloc(l2wMatrix, GCHandleType.Pinned);
             var w2lMatrixHandle = GCHandle.Alloc(w2lMatrix, GCHandleType.Pinned);
 
-            PixelsForGlory.RayTracingPlugin.UpdateTlasInstance(InstanceId,
-                                                            MaterialInstanceId,
-                                                            l2wMatrixHandle.AddrOfPinnedObject(),
-                                                            w2lMatrixHandle.AddrOfPinnedObject());
+            PixelsForGlory.RayTracing.RayTracingPlugin.UpdateTlasInstance(InstanceId,
+                                                                          MaterialInstanceId,
+                                                                          l2wMatrixHandle.AddrOfPinnedObject(),
+                                                                          w2lMatrixHandle.AddrOfPinnedObject());
 
 
 
@@ -124,7 +124,7 @@ namespace PixelsForGlory.RayTracing
         {
             if (_meshInstanceRegisteredWithRayTracer)
             {
-                PixelsForGlory.RayTracingPlugin.RemoveTlasInstance(InstanceId);
+                PixelsForGlory.RayTracing.RayTracingPlugin.RemoveTlasInstance(InstanceId);
                 _meshInstanceRegisteredWithRayTracer = false;
             }
         }

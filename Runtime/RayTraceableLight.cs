@@ -45,15 +45,15 @@ namespace PixelsForGlory.RayTracing
             _monitor.AddProperty(_light, _light.GetType(), "type", _light.type);
             _monitor.AddProperty(_light, _light.GetType(), "enabled", _light.enabled);
 
-            _registeredWithRayTracer = (PixelsForGlory.RayTracingPlugin.AddLight(InstanceId,
-                                                    transform.position.x, transform.position.y, transform.position.z,
-                                                    _light.color.r, _light.color.g, _light.color.b,
-                                                    _light.bounceIntensity,
-                                                    _light.intensity,
-                                                    _light.range,
-                                                    _light.spotAngle,
-                                                    (int)_light.type,
-                                                    _light.enabled) > 0);
+            _registeredWithRayTracer = (PixelsForGlory.RayTracing.RayTracingPlugin.AddLight(InstanceId,
+                                                                                            transform.position.x, transform.position.y, transform.position.z,
+                                                                                            _light.color.r, _light.color.g, _light.color.b,
+                                                                                            _light.bounceIntensity,
+                                                                                            _light.intensity,
+                                                                                            _light.range,
+                                                                                            _light.spotAngle,
+                                                                                            (int)_light.type,
+                                                                                            _light.enabled) > 0);
         }
 
         private void Update()
@@ -75,7 +75,7 @@ namespace PixelsForGlory.RayTracing
         {
             if(_registeredWithRayTracer)
             {
-                PixelsForGlory.RayTracingPlugin.RemoveLight(InstanceId);
+                PixelsForGlory.RayTracing.RayTracingPlugin.RemoveLight(InstanceId);
             }       
         }
 
@@ -87,15 +87,15 @@ namespace PixelsForGlory.RayTracing
                 return;
             }
             
-            PixelsForGlory.RayTracingPlugin.UpdateLight(InstanceId,
-                                                        transform.position.x, transform.position.y, transform.position.z,
-                                                        _light.color.r, _light.color.g, _light.color.b,
-                                                        _light.bounceIntensity,
-                                                        _light.intensity,
-                                                        _light.range,
-                                                        _light.spotAngle,
-                                                        (int)_light.type,
-                                                        _light.enabled);
+            PixelsForGlory.RayTracing.RayTracingPlugin.UpdateLight(InstanceId,
+                                                                   transform.position.x, transform.position.y, transform.position.z,
+                                                                   _light.color.r, _light.color.g, _light.color.b,
+                                                                   _light.bounceIntensity,
+                                                                   _light.intensity,
+                                                                   _light.range,
+                                                                   _light.spotAngle,
+                                                                   (int)_light.type,
+                                                                   _light.enabled);
         }
     }
 }

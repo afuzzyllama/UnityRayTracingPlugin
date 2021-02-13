@@ -1,7 +1,7 @@
 ﻿using UnityEditor;
 using UnityEngine;
 
-namespace PixelsForGlory.RayTracing.Editor
+namespace PixelsForGlory.RayTracing
 {
     public class RayTracingEditorWindow : EditorWindow
     {
@@ -19,7 +19,7 @@ namespace PixelsForGlory.RayTracing.Editor
 
         void OnGUI()
         {
-            var stats = PixelsForGlory.RayTracingPlugin.GetRayTracerStatistics();
+            var stats = PixelsForGlory.RayTracing.RayTracingPlugin.GetRayTracerStatistics();
 
             GUILayout.Label("Statistics", EditorStyles.boldLabel);
             EditorGUILayout.LabelField($"Registered Lights: {stats.RegisteredLights}");
