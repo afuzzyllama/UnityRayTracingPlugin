@@ -6,7 +6,9 @@ Proof of concept native plugin for Unity3d that replaces the renderer with a har
 ## Usage
 - Point to this repository to [install as a package in a Unity project](https://docs.unity3d.com/Manual/upm-git.html)
 - In Unity
-  - Set the Graphics API to Vulkan under `Project Settings -> Player` 
+  - Set the Graphics API to Vulkan under `Project Settings => Player` 
+  - Create a `Ray Tracing Render Pipeline` under `Pixels for Glory => Ray Tracing`
+  - Set created asset to `Scriptable Render Pipeline Settings` under `Project Settings => Graphics` 
   - Add `Ray Traceable Light` to any light in the scene to have the plugin register it for lighting
   - Add `Ray Traceable Object` to any object in the scene to have the plugin register it for rendering.  Must have at least a valid Mesh assigned in the `MeshFilter`
   - Use `Ray Tracer Material` which uses a PBR model to shade objects
