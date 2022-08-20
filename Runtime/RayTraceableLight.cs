@@ -4,7 +4,7 @@ namespace PixelsForGlory.RayTracing
 {
     [ExecuteInEditMode]
     [RequireComponent(typeof(Light))]
-    class RayTraceableLight : MonoBehaviour
+    public class RayTraceableLight : MonoBehaviour
     {
         [ReadOnly] public int InstanceId;
 

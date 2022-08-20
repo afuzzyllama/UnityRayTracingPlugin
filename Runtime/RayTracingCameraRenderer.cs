@@ -59,7 +59,8 @@ namespace PixelsForGlory.RayTracing
             }
 
             int cameraInstanceId = _camera.GetInstanceID();
-            if (!_targets.ContainsKey(cameraInstanceId) || _targets[cameraInstanceId].width != width || _targets[cameraInstanceId].height != height)
+            // Even if key exists it is possible for Unity to destory the texture.  Check for null.
+            if (!_targets.ContainsKey(cameraInstanceId) || _targets[cameraInstanceId] == null || _targets[cameraInstanceId].width != width || _targets[cameraInstanceId].height != height)
             {
                 _targets[cameraInstanceId] = new Texture2D(width, height, TextureFormat.RGBA32, false)
                 {
@@ -110,8 +111,7 @@ namespace PixelsForGlory.RayTracing
             {
                 ScriptableRenderContext.EmitWorldGeometryForSceneView(_camera);
             }
-    #endif
-
+#endif
             string sampleName = "Trace rays";
             _commandBuffer.BeginSample(sampleName);
             _commandBuffer.IssuePluginEventAndData(PixelsForGlory.RayTracing.RayTracingPlugin.GetEventAndDataFunc(), (int)Events.TraceRays, cameraInstanceIdHandle.AddrOfPinnedObject());

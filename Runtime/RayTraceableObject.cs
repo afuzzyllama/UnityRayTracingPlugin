@@ -6,10 +6,11 @@ namespace PixelsForGlory.RayTracing
 {
     [ExecuteInEditMode]
     [RequireComponent(typeof(RayTraceableMeshFilter))]
-    class RayTraceableObject : MonoBehaviour
+    public class RayTraceableObject : MonoBehaviour
     {
         [ReadOnly] public int InstanceId;
         [ReadOnly] public int MaterialInstanceId;
+        [ReadOnly] public int SharedMeshInstanceId = -1;
 
         public RayTracerMaterial RayTracerMaterial;
 
@@ -35,6 +36,10 @@ namespace PixelsForGlory.RayTracing
             Initialize();
         }
 
+        private void OnDestroy()
+        {
+            RemoveInstanceFromPlugin();
+        }
         private void Initialize()
         {
             InstanceId = GetInstanceID();
@@ -45,8 +50,17 @@ namespace PixelsForGlory.RayTracing
         private void Update()
         {
             if(_meshInstanceRegisteredWithRayTracer)
-            {
-                UpdateInstance();
+            {               
+                if(SharedMeshInstanceId != _rayTracableMeshFilter.SharedMeshInstanceId)
+                {
+                    PixelsForGlory.RayTracing.RayTracingPlugin.RemoveTlasInstance(InstanceId);
+                    AddInstanceToPlugin();
+                }
+                else
+                {
+                    UpdateInstance();
+                }
+
                 if(RayTracerMaterial != null)
                 {
                     RayTracerMaterial.Update();
@@ -65,9 +79,25 @@ namespace PixelsForGlory.RayTracing
             RemoveInstanceFromPlugin();
         }
 
+        public void UpdateSharedMesh(Mesh mesh)
+        {
+            // Remove the instance
+            RemoveInstanceFromPlugin();
+
+            // Add the new shared mesh
+            _rayTracableMeshFilter.UpdateSharedMesh(mesh);
+
+            // Add instance back
+            AddInstanceToPlugin();
+        }
+
         private void AddInstanceToPlugin()
         {
+            SharedMeshInstanceId = _rayTracableMeshFilter.SharedMeshInstanceId;
             
+            // Shared mesh might have been destroyed if no objects referenced it
+            _rayTracableMeshFilter.Reinitialize();
+
             var l2wMatrix = transform.localToWorldMatrix;
             var w2lMatrix = transform.worldToLocalMatrix;
             var l2wMatrixHandle = GCHandle.Alloc(l2wMatrix, GCHandleType.Pinned);
@@ -94,7 +124,7 @@ namespace PixelsForGlory.RayTracing
 
         private void UpdateInstance()
         {
-            if(!_monitor.CheckForUpdates())
+            if (!_monitor.CheckForUpdates())
             {
                 return;
             }
@@ -126,6 +156,9 @@ namespace PixelsForGlory.RayTracing
             {
                 PixelsForGlory.RayTracing.RayTracingPlugin.RemoveTlasInstance(InstanceId);
                 _meshInstanceRegisteredWithRayTracer = false;
+
+                // Might not unregister, but attempt to anyway to prevent leak
+                _rayTracableMeshFilter.UnregisterSharedMesh();
             }
         }
     }

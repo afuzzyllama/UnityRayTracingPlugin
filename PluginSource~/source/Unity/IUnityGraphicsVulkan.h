@@ -1,7 +1,11 @@
 #pragma once
 #include "IUnityInterface.h"
 
-#include "../vulkan.h"
+#include "vulkan/vulkan.h"
+#ifdef WIN32
+#include <Windows.h>
+#include "vulkan/vulkan_win32.h"
+#endif
 
 struct UnityVulkanInstance
 {

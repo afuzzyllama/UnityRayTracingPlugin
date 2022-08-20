@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace PixelsForGlory.RayTracing
 {
-    internal static class RayTracingPlugin
+    public static class RayTracingPlugin
     {
         [DllImport("RayTracingPlugin", CharSet = CharSet.Unicode)]
         public static extern int SetShaderFolder(string shaderFolder);
@@ -14,7 +14,16 @@ namespace PixelsForGlory.RayTracing
         public static extern int SetRenderTarget(int cameraInstanceId, int unityTextureFormat, int width, int height, IntPtr destination);
 
         [DllImport("RayTracingPlugin")]
+        public static extern void RemoveAllRenderTargets();
+
+        [DllImport("RayTracingPlugin")]
         public static extern int AddSharedMesh(int sharedMeshInstanceId, IntPtr vertices, IntPtr normals, IntPtr tangets, IntPtr uvs, int vertexCount, IntPtr indices, int indexCount);
+
+        [DllImport("RayTracingPlugin")]
+        public static extern int UpdateSharedMesh(int sharedMeshInstanceId, IntPtr vertices, IntPtr normals, IntPtr tangets, IntPtr uvs, int vertexCount, IntPtr indices, int indexCount);
+
+        [DllImport("RayTracingPlugin")]
+        public static extern int RemoveSharedMesh(int sharedMeshInstanceId);
 
         [DllImport("RayTracingPlugin")]
         public static extern int AddTlasInstance(int gameObjectInstanceId, int sharedMeshInstanceId, int materialInstanceId, IntPtr l2wMatrix, IntPtr w2lMatrix);
@@ -116,6 +125,16 @@ namespace PixelsForGlory.RayTracing
 
         [DllImport("RayTracingPlugin")]
         public static extern RayTracerStatistics GetRayTracerStatistics();
+
+        [DllImport("RayTracingPlugin")]
+        public static extern IntPtr GetPhysicalDevice();
+
+        [DllImport("RayTracingPlugin")]
+        public static extern IntPtr GetDevice();
+
+        [DllImport("RayTracingPlugin")]
+        public static extern IntPtr GetInstance();
+
 
         [DllImport("RayTracingPlugin")]
         public static extern IntPtr GetEventFunc();

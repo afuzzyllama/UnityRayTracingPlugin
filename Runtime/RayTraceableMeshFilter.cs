@@ -1,14 +1,17 @@
 ﻿using UnityEngine;
 
 using System.Runtime.InteropServices;
+using System;
 
 namespace PixelsForGlory.RayTracing
 {
     [ExecuteInEditMode]
     [RequireComponent(typeof(MeshFilter))]
-    class RayTraceableMeshFilter : MonoBehaviour
+    public class RayTraceableMeshFilter : MonoBehaviour
     {
         [ReadOnly] public int SharedMeshInstanceId;
+
+        [NonSerialized]
         [ReadOnly] public bool SharedMeshRegisteredWithRayTracer = false;
 
         private MeshFilter _meshFilterRef = null;
@@ -26,20 +29,61 @@ namespace PixelsForGlory.RayTracing
 
         private ValueMonitor _monitor = new ValueMonitor();
 
+        public void Reinitialize()
+        {
+            Initialize();
+        }
+
         private void OnEnable()
         {
             Initialize();
         }
 
+        private void Update()
+        {
+            if(!SharedMeshRegisteredWithRayTracer && _meshFilter.sharedMesh != null)
+            {
+                SharedMeshInstanceId = _meshFilter.sharedMesh.GetInstanceID();
+                AddMeshData();
+                _monitor.AddProperty(_meshFilter, _meshFilter.GetType(), "sharedMesh", _meshFilter.sharedMesh);
+            }
+        }
+
         private void Initialize()
         {
+            if(_meshFilter.sharedMesh != null)
+            {
+                SharedMeshInstanceId = _meshFilter.sharedMesh.GetInstanceID();
+                AddMeshData();
+                _monitor.AddProperty(_meshFilter, _meshFilter.GetType(), "sharedMesh", _meshFilter.sharedMesh);
+            }
+        }
+
+        internal void UnregisterSharedMesh()
+        {
+            RemoveMeshData();
+            _meshFilter.sharedMesh = null;
+            SharedMeshRegisteredWithRayTracer = false;
+        }
+
+        internal void UpdateSharedMesh(Mesh mesh)
+        {
+            // Remove the old shared mesh if applicable 
+            UnregisterSharedMesh();
+
+            // This will cause mesh to update on next update call
+            _meshFilter.sharedMesh = mesh;
             SharedMeshInstanceId = _meshFilter.sharedMesh.GetInstanceID();
-            AddMeshData();
-            _monitor.AddProperty(_meshFilter, _meshFilter.GetType(), "sharedMesh", _meshFilter.sharedMesh);
         }
 
         private void AddMeshData()
         {
+            if(SharedMeshRegisteredWithRayTracer == true)
+            {
+                // Already added
+                return;
+            }
+
             // Make sure we got these calculated!
             _meshFilter.sharedMesh.RecalculateNormals();
             _meshFilter.sharedMesh.RecalculateBounds();
@@ -74,6 +118,18 @@ namespace PixelsForGlory.RayTracing
             tangetsHandle.Free();
             uvsHandle.Free();
             indicesHandle.Free();
+        }
+
+        private void RemoveMeshData()
+        {
+            if(!SharedMeshRegisteredWithRayTracer)
+            {
+                // Not registered, nothing to do
+                return;
+            }
+
+            // This might not remove the shared mesh, but if this is the only filter that references it, it will be removed
+            PixelsForGlory.RayTracing.RayTracingPlugin.RemoveSharedMesh(SharedMeshInstanceId);
         }
     }
 }

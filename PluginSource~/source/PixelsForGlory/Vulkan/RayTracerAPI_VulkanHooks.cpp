@@ -2,10 +2,11 @@
 
 #if SUPPORT_VULKAN
 
+// This plugin does not link to the Vulkan loader, easier to support multiple APIs and systems that don't have Vulkan support
 #include "../../Unity/IUnityGraphics.h"
 #include "../../Unity/IUnityGraphicsVulkan.h"
 
-#include "../Debug.h"
+#include "../Helpers.h"
 
 namespace PixelsForGlory::Vulkan
 {
@@ -13,11 +14,7 @@ namespace PixelsForGlory::Vulkan
     extern VkResult CreateDevice_RayTracer(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo* unityCreateInfo, const VkAllocationCallbacks* unityAllocator, VkDevice* device);
 }
 
-// include volk.c for implementation
-#include "volk.c"
-
 // Below are all the hooks required for setting up ray tracing in Vulkan.  These calls are injected into the Unity startup for Vulkan.
-
 static VKAPI_ATTR VkResult VKAPI_CALL Hook_vkCreateInstance(const VkInstanceCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkInstance* pInstance)
 {
     PFG_EDITORLOG("Hook_vkCreateInstance");
@@ -58,7 +55,6 @@ static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL Hook_vkGetInstanceProcAddr(VkIns
 
 static PFN_vkGetInstanceProcAddr UNITY_INTERFACE_API InterceptVulkanInitialization(PFN_vkGetInstanceProcAddr getInstanceProcAddr, void*)
 {
-    vkGetInstanceProcAddr = getInstanceProcAddr;
     return Hook_vkGetInstanceProcAddr;
 }
 

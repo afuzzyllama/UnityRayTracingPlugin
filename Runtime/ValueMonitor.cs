@@ -26,6 +26,11 @@ namespace PixelsForGlory.RayTracing
             _values.Add(new MonitorValue { obj = obj, FieldInfo = type.GetField(fieldName), lastValue = lastValue });
         }
 
+        public void Reset()
+        {
+            _values.Clear();
+        }
+
         public bool CheckForUpdates()
         {
             bool update = false;

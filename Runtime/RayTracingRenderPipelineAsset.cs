@@ -20,6 +20,8 @@ namespace PixelsForGlory.RayTracing
         {
             base.OnDisable();
             PixelsForGlory.RayTracing.RayTracingPlugin.StopMonitoringShaders();
+            PixelsForGlory.RayTracing.RayTracingPlugin.RemoveAllRenderTargets();
         }
+
     }
 }    
