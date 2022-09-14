@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string>
 
-#include "vulkan/vulkan.h"
+#include "../Unity/IUnityGraphicsVulkan.h"
 
 #ifndef PFG_EDITORLOG
 #define PFG_EDITORLOG(msg) {\

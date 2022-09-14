@@ -4,6 +4,9 @@
 #include <vector>
 #include "../Helpers.h"
 
+#include <thread>         // std::this_thread::sleep_for
+#include <chrono>         // std::chrono::seconds
+
 namespace PixelsForGlory
 {
     RayTracerAPI* CreateRayTracerAPI_Vulkan()
@@ -20,11 +23,7 @@ namespace PixelsForGlory::Vulkan
     /// Resolve properties and queues required for ray tracing
     /// </summary>
     /// <param name="physicalDevice"></param>
-    void ResolvePropertiesAndQueues_RayTracer(VkPhysicalDevice physicalDevice) {
-
-        // find our queues
-        const VkQueueFlagBits askingFlags[3] = { VK_QUEUE_GRAPHICS_BIT, VK_QUEUE_TRANSFER_BIT };
-        uint32_t queuesIndices[2] = { ~0u, ~0u };
+    bool ResolveQueueFamily_RayTracer(VkPhysicalDevice physicalDevice, uint32_t &index) {
 
         // Call once to get the count
         uint32_t queueFamilyPropertyCount;
@@ -35,43 +34,19 @@ namespace PixelsForGlory::Vulkan
         vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyPropertyCount, queueFamilyProperties.data());
 
         // Locate which queueFamilyProperties index 
-        for (size_t i = 0; i < 2; ++i) {
-            const VkQueueFlagBits flag = askingFlags[i];
-            uint32_t& queueIdx = queuesIndices[i];
-
-            if ((flag & VK_QUEUE_TRANSFER_BIT) == VK_QUEUE_TRANSFER_BIT) {
-                for (uint32_t j = 0; j < queueFamilyPropertyCount; ++j) {
-                    if (((queueFamilyProperties[j].queueFlags & VK_QUEUE_TRANSFER_BIT) == VK_QUEUE_TRANSFER_BIT) &&
-                        !((queueFamilyProperties[j].queueFlags & VK_QUEUE_GRAPHICS_BIT) == VK_QUEUE_GRAPHICS_BIT)) {
-                        queueIdx = j;
-                        break;
-                    }
-                }
-            }
-
-            // If an index wasn't return by the above, just find any queue that supports the flag
-            if (queueIdx == ~0u) {
-                for (uint32_t j = 0; j < queueFamilyPropertyCount; ++j) {
-                    if (queueFamilyProperties[j].queueFlags & flag) {
-                        queueIdx = j;
-                        break;
-                    }
-                }
+        for (uint32_t i = 0; i < queueFamilyPropertyCount; ++i) {
+            if(
+                    (queueFamilyProperties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0 &&
+                    (queueFamilyProperties[i].queueFlags & VK_QUEUE_COMPUTE_BIT) != 0
+            ){
+                PFG_EDITORLOG("Queue family found");
+                index = i;
+                return true;
             }
         }
 
-        if (queuesIndices[0] == ~0u || queuesIndices[1] == ~0u) {
-            PFG_EDITORLOGERROR("Could not find queues to support all required flags");
-            return;
-        }
-
-        PixelsForGlory::Vulkan::RayTracer::Instance().graphicsQueueFamilyIndex_ = queuesIndices[0];
-        PixelsForGlory::Vulkan::RayTracer::Instance().transferQueueFamilyIndex_ = queuesIndices[1];
-
-        PFG_EDITORLOG("Queues indices successfully reoslved");
-    };
-    
-
+        return false;
+    }
 
     /// <summary>
     /// Injects what is required for ray tracing into vkCreateInstance
@@ -80,12 +55,111 @@ namespace PixelsForGlory::Vulkan
     /// <param name="unityAllocator"></param>
     /// <param name="instance"></param>
     /// <returns></returns>
-    VkResult CreateInstance_RayTracer(const VkInstanceCreateInfo* unityCreateInfo, const VkAllocationCallbacks* unityAllocator, VkInstance* instance)
+    VkResult CreateInstance_RayTracer(const VkInstanceCreateInfo* unityCreateInfo, const VkAllocationCallbacks* unityAllocator, VkInstance* pInstance)
     {
-        VkResult result = vkCreateInstance(unityCreateInfo, unityAllocator, instance);
-        VK_CHECK("vkCreateInstance", result);
+        PFG_EDITORLOG("Creating instance");
 
-        return result;
+        std::vector<std::string> unityLayers;
+
+        if (unityCreateInfo->enabledLayerCount > 0)
+        {
+            unityLayers = std::vector<std::string>(
+                unityCreateInfo->ppEnabledLayerNames, 
+                unityCreateInfo->ppEnabledLayerNames + unityCreateInfo->enabledLayerCount);
+        }
+        
+        std::vector<const char*> enableLayers;
+#if _DEBUG
+        // If debug build, add debug support.
+        auto VK_LAYER_KHRONOS_validation_enabled = false;
+#endif
+
+        for (auto const& layer : unityLayers) {
+            PFG_EDITORLOG("Unity enabled layer: " + std::string(layer));
+
+#if _DEBUG
+            if (strcmp(layer.c_str(), "VK_LAYER_KHRONOS_validation") == 0)
+            {
+                VK_LAYER_KHRONOS_validation_enabled = true;
+            }
+#endif
+
+            enableLayers.emplace_back(layer.c_str());
+        }
+
+#if _DEBUG
+        if (VK_LAYER_KHRONOS_validation_enabled == false)
+        {
+            PFG_EDITORLOG("Adding layer: VK_LAYER_KHRONOS_validation");
+            enableLayers.emplace_back("VK_LAYER_KHRONOS_validation");
+        }
+#endif
+
+
+        
+        std::vector<std::string> unityExtensions(
+            unityCreateInfo->ppEnabledExtensionNames,
+            unityCreateInfo->ppEnabledExtensionNames + unityCreateInfo->enabledExtensionCount);
+
+        std::vector<const char*> enableExtensions;
+
+#if _DEBUG
+        // If debug build, add debug support.
+        auto VK_EXT_DEBUG_REPORT_EXTENSION_NAME_enabled = false;
+        auto VK_EXT_DEBUG_UTILS_EXTENSION_NAME_enabled = false;
+#endif
+      
+        for (auto const& ext : unityExtensions) {
+            PFG_EDITORLOG("Unity enabled extension: " + std::string(ext));
+
+#if _DEBUG
+            if (strcmp(ext.c_str(), VK_EXT_DEBUG_REPORT_EXTENSION_NAME) == 0)
+            {
+                VK_EXT_DEBUG_REPORT_EXTENSION_NAME_enabled = true;
+            }
+            
+            if (strcmp(ext.c_str(), VK_EXT_DEBUG_UTILS_EXTENSION_NAME) == 0)
+            {
+                VK_EXT_DEBUG_UTILS_EXTENSION_NAME_enabled = true;
+            }
+#endif
+
+            enableExtensions.emplace_back(ext.c_str());
+        }
+
+#if _DEBUG
+        if (VK_EXT_DEBUG_REPORT_EXTENSION_NAME_enabled == false)
+        {
+            PFG_EDITORLOG("Adding support for extension: " + std::string(VK_EXT_DEBUG_REPORT_EXTENSION_NAME));
+            enableExtensions.emplace_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+        }
+
+        if (VK_EXT_DEBUG_UTILS_EXTENSION_NAME_enabled == false)
+        {
+            PFG_EDITORLOG("Adding support for extension: " + std::string(VK_EXT_DEBUG_UTILS_EXTENSION_NAME));
+            enableExtensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        }
+#endif
+        VkApplicationInfo applicationInfo = {};
+        applicationInfo.sType = unityCreateInfo->pApplicationInfo->sType;
+        applicationInfo.pNext = unityCreateInfo->pApplicationInfo->pNext;
+        applicationInfo.pApplicationName = unityCreateInfo->pApplicationInfo->pApplicationName;
+        applicationInfo.applicationVersion = unityCreateInfo->pApplicationInfo->applicationVersion;
+        applicationInfo.pEngineName = unityCreateInfo->pApplicationInfo->pEngineName;
+        applicationInfo.engineVersion = unityCreateInfo->pApplicationInfo->engineVersion;
+        applicationInfo.apiVersion = VK_API_VERSION_1_3;
+
+        VkInstanceCreateInfo createInfo = {};
+        createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+        createInfo.pNext = unityCreateInfo->pNext;
+        createInfo.flags = unityCreateInfo->flags;
+        createInfo.pApplicationInfo = &applicationInfo;
+        createInfo.enabledLayerCount = static_cast<uint32_t>(enableLayers.size());
+        createInfo.ppEnabledLayerNames = enableLayers.data();
+        createInfo.enabledExtensionCount = static_cast<uint32_t>(enableExtensions.size());
+        createInfo.ppEnabledExtensionNames = enableExtensions.data();
+
+        return vkCreateInstance(&createInfo, unityAllocator, pInstance);
     }
 
     /// <summary>
@@ -98,6 +172,8 @@ namespace PixelsForGlory::Vulkan
     /// <returns></returns>
     VkResult CreateDevice_RayTracer(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo* unityCreateInfo, const VkAllocationCallbacks* unityAllocator, VkDevice* device)
     {
+        //std::this_thread::sleep_for(std::chrono::seconds(10));
+
         // Setup required features backwards for chaining
         VkPhysicalDeviceDescriptorIndexingFeatures physicalDeviceDescriptorIndexingFeatures = { };
         physicalDeviceDescriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
@@ -120,6 +196,7 @@ namespace PixelsForGlory::Vulkan
 
         VkPhysicalDeviceFeatures2 deviceFeatures = { };
         deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        //deviceFeatures.features = *unityCreateInfo->pEnabledFeatures;
         deviceFeatures.pNext = &physicalDeviceAccelerationStructureFeatures;
 
         vkGetPhysicalDeviceFeatures2(physicalDevice, &deviceFeatures); // enable all the features our GPU has
@@ -149,7 +226,6 @@ namespace PixelsForGlory::Vulkan
         auto VK_KHR_BUFFER_DEVICE_ADDRESS_enabled = false;
         auto VK_KHR_DEFERRED_HOST_OPERATIONS_enabled = false;
         auto VK_EXT_DESCRIPTOR_INDEXING_enabled = false;
-
 
         for (auto const& ext : unityExtensions) {
             PFG_EDITORLOG("Unity enabled extension: " + std::string(ext));
@@ -236,16 +312,48 @@ namespace PixelsForGlory::Vulkan
 
         }
 
+        uint32_t requiredQueueFamilyIndex = 0;
+        std::vector<VkDeviceQueueCreateInfo> pQueueCreateInfos(
+            unityCreateInfo->pQueueCreateInfos,
+            unityCreateInfo->pQueueCreateInfos + unityCreateInfo->queueCreateInfoCount);
+        if (ResolveQueueFamily_RayTracer(physicalDevice, requiredQueueFamilyIndex))
+        {
+            // If we found a queue family, make our own queue
+            // This was the case when I started development
+            assert(pQueueCreateInfos.size() == 1);
+
+            if (pQueueCreateInfos[0].queueFamilyIndex == requiredQueueFamilyIndex) {
+                PFG_EDITORLOG("Created extra queue on existing family " + std::to_string(requiredQueueFamilyIndex));
+                pQueueCreateInfos[0].queueCount = pQueueCreateInfos[0].queueCount + 1;
+
+                Vulkan::RayTracer::Instance().queueFamilyIndex_ = requiredQueueFamilyIndex;
+                Vulkan::RayTracer::Instance().queueIndex_ = pQueueCreateInfos[0].queueCount - 1;
+            }
+            else
+            {
+                VkDeviceQueueCreateInfo deviceQueueCreateInfo = {};
+                deviceQueueCreateInfo.queueFamilyIndex = requiredQueueFamilyIndex;
+                deviceQueueCreateInfo.queueCount = 1;
+
+                PFG_EDITORLOG("Created new queue on family " + std::to_string(requiredQueueFamilyIndex));
+                pQueueCreateInfos.emplace_back(deviceQueueCreateInfo);
+
+                Vulkan::RayTracer::Instance().queueFamilyIndex_ = requiredQueueFamilyIndex;
+                Vulkan::RayTracer::Instance().queueIndex_ = 0;
+            }
+        }
+        
+        // Otherwise, just create Unity's queue
         VkDeviceCreateInfo deviceCreateInfo = {};
-        deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO; 
+        deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
         deviceCreateInfo.pNext = &deviceFeatures;
         deviceCreateInfo.flags = 0;
-        deviceCreateInfo.queueCreateInfoCount = unityCreateInfo->queueCreateInfoCount;
-        deviceCreateInfo.pQueueCreateInfos = unityCreateInfo->pQueueCreateInfos;
+        deviceCreateInfo.queueCreateInfoCount = static_cast<uint32_t>(pQueueCreateInfos.size());
+        deviceCreateInfo.pQueueCreateInfos = pQueueCreateInfos.data();
         deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(enableExtensions.size());
         deviceCreateInfo.ppEnabledExtensionNames = enableExtensions.data();
-        deviceCreateInfo.pEnabledFeatures = unityCreateInfo->pEnabledFeatures;
-
+        deviceCreateInfo.pEnabledFeatures = nullptr; // unityCreateInfo->pEnabledFeatures - not using because using VkPhysicalDeviceFeatures2
+        
         VkResult result = vkCreateDevice(physicalDevice, &deviceCreateInfo, unityAllocator, device);
 
         if (result == VK_SUCCESS)
@@ -263,6 +371,8 @@ namespace PixelsForGlory::Vulkan
 
     RayTracer::RayTracer()
         : graphicsInterface_(nullptr)
+        , queueFamilyIndex_(0)
+        , queueIndex_(0)
     {}
 
     void RayTracer::InitializeFromUnityInstance(IUnityGraphicsVulkan* graphicsInterface)
@@ -288,7 +398,7 @@ namespace PixelsForGlory::Vulkan
 
             auto graphicsInterface = interfaces->Get<IUnityGraphicsVulkan>();
 
-            UnityVulkanPluginEventConfig eventConfig;
+            auto eventConfig = UnityVulkanPluginEventConfig();
             eventConfig.graphicsQueueAccess = kUnityVulkanGraphicsQueueAccess_Allow;
             eventConfig.renderPassPrecondition = kUnityVulkanRenderPass_EnsureOutside;
             eventConfig.flags = kUnityVulkanEventConfigFlag_EnsurePreviousFrameSubmission | kUnityVulkanEventConfigFlag_ModifiesCommandBuffersState;
@@ -349,6 +459,260 @@ namespace PixelsForGlory::Vulkan
     void* RayTracer::GetPhysicalDevice()
     {
         return (void*)graphicsInterface_->Instance().physicalDevice;
+    }
+
+    void* RayTracer::GetImageFromTexture(void* nativeTexturePtr)
+    {
+        UnityVulkanImage image;
+        if (!graphicsInterface_->AccessTexture(
+                nativeTexturePtr,
+                UnityVulkanWholeImage,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                VK_ACCESS_SHADER_READ_BIT,
+                kUnityVulkanResourceAccess_PipelineBarrier,
+                &image))
+        {
+            PFG_EDITORLOGERROR("Cannot get accesss texture to add");
+            return nullptr;
+        }
+
+        return image.image;
+    }
+
+    unsigned long long RayTracer::GetSafeFrameNumber()
+    {
+        UnityVulkanRecordingState unityRecordingState;
+        if (!graphicsInterface_->CommandRecordingState(&unityRecordingState, kUnityVulkanGraphicsQueueAccess_DontCare))
+        {
+            return ULLONG_MAX;
+        }
+
+        return unityRecordingState.safeFrameNumber;
+    }
+
+    uint32_t RayTracer::GetQueueFamilyIndex()
+    {
+        return Vulkan::RayTracer::Instance().queueFamilyIndex_;
+    }
+
+    uint32_t RayTracer::GetQueueIndex()
+    {
+        return Vulkan::RayTracer::Instance().queueIndex_;
+    }
+
+    void RayTracer::CmdTraceRaysKHR(void* data)
+    {
+        graphicsInterface_->EnsureInsideRenderPass();
+
+        PFG_EDITORLOG("CmdTraceRaysKHR was called")
+
+        UnityVulkanRecordingState unityRecordingState;
+        if (!graphicsInterface_->CommandRecordingState(&unityRecordingState, kUnityVulkanGraphicsQueueAccess_DontCare))
+        {
+            return;
+        }
+
+        auto commandData = (vkCmdTraceRaysKHRData*)data;
+
+        UnityVulkanImage dstImage;
+        if (!graphicsInterface_->AccessTexture(
+                commandData->dstTexture,
+                UnityVulkanWholeImage,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_ACCESS_TRANSFER_WRITE_BIT,
+                kUnityVulkanResourceAccess_PipelineBarrier,
+                &dstImage
+            ))
+        {
+            return;
+        }
+
+
+        // Dispatch the ray tracing commands
+        vkCmdBindPipeline(
+            unityRecordingState.commandBuffer, 
+            VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, 
+            commandData->pipeline);
+
+        vkCmdBindDescriptorSets(
+            unityRecordingState.commandBuffer,
+            VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+            commandData->pipelineLayout,
+            0,
+            commandData->descriptorCount,
+            commandData->pDescriptorSets,
+            0,
+            0);
+
+        // Update image barrier Make into a storage image
+        VkImageSubresourceRange range = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+        
+        VkImageMemoryBarrier imageMemoryBarrier = {};
+        imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        imageMemoryBarrier.srcAccessMask = VK_ACCESS_NONE;
+        imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        imageMemoryBarrier.image = commandData->offscreenImage;
+        imageMemoryBarrier.subresourceRange = range;
+
+        vkCmdPipelineBarrier(
+            unityRecordingState.commandBuffer, 
+            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 
+            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 
+            0, 
+            0, 
+            nullptr, 
+            0, 
+            nullptr, 
+            1, 
+            &imageMemoryBarrier);
+
+        vkCmdTraceRaysKHR(
+            unityRecordingState.commandBuffer,
+            &commandData->raygenShaderEntry,
+            &commandData->missShaderEntry,
+            &commandData->hitShaderEntry,
+            &commandData->callableShaderEntry,
+            commandData->extent.width,
+            commandData->extent.height,
+            commandData->extent.depth);
+
+
+        // Copy result
+          // src
+        imageMemoryBarrier = {};
+        imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+        imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        imageMemoryBarrier.image = commandData->offscreenImage;
+        imageMemoryBarrier.subresourceRange = range;
+
+        vkCmdPipelineBarrier(
+            unityRecordingState.commandBuffer,
+            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            1,
+            &imageMemoryBarrier);
+
+        // dst 
+        imageMemoryBarrier = {};
+        imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        imageMemoryBarrier.srcAccessMask = VK_ACCESS_NONE;
+        imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        imageMemoryBarrier.image = dstImage.image;
+        imageMemoryBarrier.subresourceRange = range;
+
+        vkCmdPipelineBarrier(
+            unityRecordingState.commandBuffer,
+            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            1,
+            &imageMemoryBarrier);
+
+        VkImageCopy imageCopy = {};
+        imageCopy.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+        imageCopy.srcOffset = { 0, 0, 0 };
+        imageCopy.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+        imageCopy.dstOffset = { 0, 0, 0 };
+        imageCopy.extent = commandData->extent;
+
+        vkCmdCopyImage(
+            unityRecordingState.commandBuffer,
+            commandData->offscreenImage,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            dstImage.image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1,
+            &imageCopy);
+
+    }
+
+    void RayTracer::Blit(void* data) {
+
+        // cannot do resource uploads inside renderpass
+        graphicsInterface_->EnsureOutsideRenderPass();
+
+        auto blitData = (BlitData*)data;
+
+        UnityVulkanRecordingState recordingState;
+        if (!graphicsInterface_->CommandRecordingState(&recordingState, kUnityVulkanGraphicsQueueAccess_DontCare))
+        {
+            PFG_EDITORLOGERROR("Cannot get recording state for blit");
+            return;
+        }
+
+        UnityVulkanImage dstImage;
+        if (!graphicsInterface_->AccessTexture(
+            blitData->dstHandle,
+            UnityVulkanWholeImage,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_ACCESS_TRANSFER_WRITE_BIT,
+            kUnityVulkanResourceAccess_PipelineBarrier,
+            &dstImage))
+        {
+            PFG_EDITORLOGERROR("Cannot access destination for blit");
+            return;
+        }
+
+        // Setup source image barrier
+        VkImageMemoryBarrier srcImageMemoryBarrier;
+        srcImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        srcImageMemoryBarrier.pNext = nullptr;
+        srcImageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        srcImageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        srcImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+        srcImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        srcImageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        srcImageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        srcImageMemoryBarrier.image = blitData->srcImage;
+        srcImageMemoryBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+
+        vkCmdPipelineBarrier(
+            recordingState.commandBuffer,
+            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+            0, 0, nullptr, 0, nullptr, 1,
+            &srcImageMemoryBarrier);
+
+        VkImageCopy imageCopy;
+        imageCopy.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+        imageCopy.srcOffset = { 0, 0, 0 };
+        imageCopy.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+        imageCopy.dstOffset = { 0, 0, 0 };
+        imageCopy.extent = blitData->extent;
+
+        vkCmdCopyImage(
+            recordingState.commandBuffer,
+            blitData->srcImage,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            dstImage.image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1,
+            &imageCopy);
     }
 
     struct TraceRaysData {

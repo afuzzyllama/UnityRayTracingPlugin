@@ -1,6 +1,5 @@
 #pragma once
 
-#include "vulkan/vulkan.h"
 #include "../../Unity/IUnityGraphics.h"
 #include "../../Unity/IUnityGraphicsVulkan.h"
 #include "../RayTracerAPI.h"
@@ -23,7 +22,7 @@ namespace PixelsForGlory::Vulkan
     /// Resolve properties and queues required for ray tracing
     /// </summary>
     /// <param name="physicalDevice"></param>
-    void ResolvePropertiesAndQueues_RayTracer(VkPhysicalDevice physicalDevice);
+    bool ResolveQueueFamily_RayTracer(VkPhysicalDevice physicalDevice, uint32_t& index);
 
     class RayTracer : public RayTracerAPI
     {
@@ -39,7 +38,7 @@ namespace PixelsForGlory::Vulkan
         VkDebugUtilsMessengerEXT debugMessenger_;
 
         // Friend so hook functions can access
-        friend void ResolvePropertiesAndQueues_RayTracer(VkPhysicalDevice physicalDevice);
+        friend bool ResolveQueueFamily_RayTracer(VkPhysicalDevice physicalDevice, uint32_t& index);
         friend VkResult CreateInstance_RayTracer(const VkInstanceCreateInfo* unityCreateInfo, const VkAllocationCallbacks* unityAllocator, VkInstance* instance);
         friend VkResult CreateDevice_RayTracer(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo* unityCreateInfo, const VkAllocationCallbacks* unityAllocator, VkDevice* device);
 
@@ -67,6 +66,13 @@ namespace PixelsForGlory::Vulkan
         virtual void* GetInstance();
         virtual void* GetDevice();
         virtual void* GetPhysicalDevice();
+        virtual void* GetImageFromTexture(void* nativeTexturePtr);
+        virtual unsigned long long GetSafeFrameNumber();
+        virtual uint32_t GetQueueFamilyIndex();
+        virtual uint32_t GetQueueIndex();
+        virtual void Blit(void* data);
+
+        virtual void CmdTraceRaysKHR(void* data);
 
         virtual void TraceRays(void* data);
 
@@ -74,6 +80,28 @@ namespace PixelsForGlory::Vulkan
 
 
     private:
+        struct vkCmdTraceRaysKHRData
+        {
+        public:
+            VkPipeline pipeline;
+            VkPipelineLayout pipelineLayout;
+            uint32_t descriptorCount;
+            VkDescriptorSet* pDescriptorSets;
+            VkImage offscreenImage;
+            void* dstTexture;
+            VkExtent3D extent;
+            VkStridedDeviceAddressRegionKHR raygenShaderEntry;
+            VkStridedDeviceAddressRegionKHR missShaderEntry;
+            VkStridedDeviceAddressRegionKHR hitShaderEntry;
+            VkStridedDeviceAddressRegionKHR callableShaderEntry;
+        };
+
+        struct BlitData {
+            VkImage srcImage;
+            void* dstHandle;
+            VkExtent3D extent;
+        };
+
         /// <summary>
         /// Dummy null device for device_ member
         /// </summary>
@@ -84,9 +112,9 @@ namespace PixelsForGlory::Vulkan
         /// </summary>
         const IUnityGraphicsVulkan* graphicsInterface_;
 
-        uint32_t graphicsQueueFamilyIndex_;
-        uint32_t transferQueueFamilyIndex_;
-
+        uint32_t queueFamilyIndex_;
+        uint32_t queueIndex_;
+        
         RayTracer();    // Private for singleton
 
     };

@@ -23,13 +23,13 @@ typedef enum UnityGfxRenderer
 
 typedef enum UnityGfxDeviceEventType
 {
-    kUnityGfxDeviceEventInitialize     = 0,
-    kUnityGfxDeviceEventShutdown       = 1,
-    kUnityGfxDeviceEventBeforeReset    = 2,
-    kUnityGfxDeviceEventAfterReset     = 3,
+    kUnityGfxDeviceEventInitialize = 0,
+    kUnityGfxDeviceEventShutdown = 1,
+    kUnityGfxDeviceEventBeforeReset = 2,
+    kUnityGfxDeviceEventAfterReset = 3,
 } UnityGfxDeviceEventType;
 
-typedef void (UNITY_INTERFACE_API * IUnityGraphicsDeviceEventCallback)(UnityGfxDeviceEventType eventType);
+typedef void (UNITY_INTERFACE_API* IUnityGraphicsDeviceEventCallback)(UnityGfxDeviceEventType eventType);
 
 // Should only be used on the rendering thread unless noted otherwise.
 UNITY_DECLARE_INTERFACE(IUnityGraphics)
@@ -48,5 +48,5 @@ UNITY_REGISTER_INTERFACE_GUID(0x7CBA0A9CA4DDB544ULL, 0x8C5AD4926EB17B11ULL, IUni
 
 // Certain Unity APIs (GL.IssuePluginEvent, CommandBuffer.IssuePluginEvent) can callback into native plugins.
 // Provide them with an address to a function of this signature.
-typedef void (UNITY_INTERFACE_API * UnityRenderingEvent)(int eventId);
-typedef void (UNITY_INTERFACE_API * UnityRenderingEventAndData)(int eventId, void* data);
+typedef void (UNITY_INTERFACE_API* UnityRenderingEvent)(int eventId);
+typedef void (UNITY_INTERFACE_API* UnityRenderingEventAndData)(int eventId, void* data);

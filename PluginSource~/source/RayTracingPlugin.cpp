@@ -8,10 +8,6 @@
 
 #include "PixelsForGlory/Helpers.h"
 
-#if VULKAN_SUPPORT
-#include "vulkan/vulkan.h"
-#endif
-
 #define PLUGIN_CHECK()  if (s_CurrentAPI == nullptr) { return; }
 #define PLUGIN_CHECK_RETURN(returnValue)  if (s_CurrentAPI == nullptr) { return returnValue; }
 
@@ -86,7 +82,8 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 enum class Events
 {
     None = 0,
-    TraceRays = 1
+    CmdTraceRaysKHR = 1,
+    Blit = 2
 };
 
 static void UNITY_INTERFACE_API OnEvent(int eventId)
@@ -104,15 +101,15 @@ static void UNITY_INTERFACE_API OnEventAndData(int eventId, void* data)
 
     switch (event)
     {
-    case Events::TraceRays:
-        s_CurrentAPI->TraceRays(data);
-        break;
-    default:
-        PFG_EDITORLOGERROR("Unsupported event id: " + std::to_string(eventId));
+        case Events::CmdTraceRaysKHR:
+            s_CurrentAPI->CmdTraceRaysKHR(data);
+            break;
+        case Events::Blit:
+            s_CurrentAPI->Blit(data);
+            break;
+        default:
+            PFG_EDITORLOGERROR("Unsupported event id: " + std::to_string(eventId));
     }
-
-
-
 }
 
 extern "C" UnityRenderingEvent UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetEventFunc()
@@ -125,7 +122,6 @@ extern "C" UnityRenderingEventAndData UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API
     return OnEventAndData;
 }
 
-typedef void* InstancePointer;
 extern "C" InstancePointer UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetInstance()
 {
     PLUGIN_CHECK_RETURN(nullptr);
@@ -133,7 +129,6 @@ extern "C" InstancePointer UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetInstanc
     return s_CurrentAPI->GetInstance();
 }
 
-typedef void* DevicePointer;
 extern "C" DevicePointer UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetDevice()
 {
     PLUGIN_CHECK_RETURN(nullptr);
@@ -141,10 +136,37 @@ extern "C" DevicePointer UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetDevice()
     return s_CurrentAPI->GetDevice();
 }
 
-typedef void* PhysicalDevicePointer;
 extern "C" PhysicalDevicePointer UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetPhysicalDevice()
 {
     PLUGIN_CHECK_RETURN(nullptr);
 
     return s_CurrentAPI->GetPhysicalDevice();
+}
+
+extern "C" Image UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetImageFromTexture(void* nativeTexturePtr)
+{
+    PLUGIN_CHECK_RETURN(nullptr);
+
+    return s_CurrentAPI->GetImageFromTexture(nativeTexturePtr);
+}
+
+extern "C" unsigned long long UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetSafeFrameNumber()
+{
+    PLUGIN_CHECK_RETURN(0);
+
+    return s_CurrentAPI->GetSafeFrameNumber();
+}
+
+extern "C" uint32_t UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetQueueFamilyIndex()
+{
+    PLUGIN_CHECK_RETURN(0);
+
+    return s_CurrentAPI->GetQueueFamilyIndex();
+}
+
+extern "C" uint32_t UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetQueueIndex()
+{
+    PLUGIN_CHECK_RETURN(0);
+
+    return s_CurrentAPI->GetQueueIndex();
 }

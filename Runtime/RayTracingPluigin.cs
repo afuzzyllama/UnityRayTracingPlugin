@@ -3,10 +3,43 @@ using System.Runtime.InteropServices;
 
 using UnityEngine;
 
+using Vk = Silk.NET.Vulkan;
+
 namespace PixelsForGlory.RayTracing
 {
     public static class RayTracingPlugin
     {
+        public enum Events : int 
+        {
+            None = 0,
+            CmdTraceRaysKHR = 1,
+            Blit = 2
+        };
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct vkCmdTraceRaysKHRData
+        {
+            public Vk.Pipeline pipeline;
+            public Vk.PipelineLayout pipelineLayout;
+            public uint DescriptorCount;
+            public IntPtr PDescriptorSets;
+            public Vk.Image offscreenImage;
+            public IntPtr dstTexture;
+            public Vk.Extent3D extent;
+            public Vk.StridedDeviceAddressRegionKHR raygenShaderEntry;
+            public Vk.StridedDeviceAddressRegionKHR missShaderEntry;
+            public Vk.StridedDeviceAddressRegionKHR hitShaderEntry;
+            public Vk.StridedDeviceAddressRegionKHR callableShaderEntry;
+        };
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BlitData
+        {
+            public Vk.Image srcImage;
+            public IntPtr dstHandle;
+            public Vk.Extent3D extent;
+        };
+
         [DllImport("RayTracingPlugin", CharSet = CharSet.Unicode)]
         public static extern int SetShaderFolder(string shaderFolder);
 
@@ -135,6 +168,17 @@ namespace PixelsForGlory.RayTracing
         [DllImport("RayTracingPlugin")]
         public static extern IntPtr GetInstance();
 
+        [DllImport("RayTracingPlugin")]
+        public static extern IntPtr GetImageFromTexture(IntPtr nativeTexturePtr);
+
+        [DllImport("RayTracingPlugin")]
+        public static extern ulong GetSafeFrameNumber();
+
+        [DllImport("RayTracingPlugin")]
+        public static extern uint GetQueueFamilyIndex();
+        
+        [DllImport("RayTracingPlugin")]
+        public static extern uint GetQueueIndex();
 
         [DllImport("RayTracingPlugin")]
         public static extern IntPtr GetEventFunc();
